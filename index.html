@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Sales Assistant - Portal</title>
+    <!-- Tailwind CSS kwa ajili ya muonekano wa kisasa na mwepesi -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <!-- Navigation Bar -->
+    <nav class="bg-blue-900 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold tracking-wide">SalesAI <span class="text-xs bg-green-500 text-white px-2 py-1 rounded-full">SaaS</span></h1>
+        
+        <!-- Language Switcher -->
+        <div class="flex items-center space-x-3">
+            <button onclick="switchLanguage('sw')" class="bg-blue-800 hover:bg-blue-700 text-xs px-3 py-1.5 rounded font-semibold border border-blue-600">SW</button>
+            <button onclick="switchLanguage('en')" class="bg-blue-800 hover:bg-blue-700 text-xs px-3 py-1.5 rounded font-semibold border border-blue-600">EN</button>
+        </div>
+    </nav>
+
+    <div class="max-w-6xl mx-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <!-- Sidebar: Status & Subscription Payment -->
+        <div class="space-y-6">
+            <!-- Account Status Card -->
+            <div class="bg-white p-5 rounded-lg shadow border-l-4 border-green-500">
+                <h2 class="font-bold text-gray-700 text-lg mb-2" id="txt-status-title">Hali ya Akaunti</h2>
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm text-gray-600" id="txt-pkg">Kifurushi:</span>
+                    <span class="font-bold text-blue-900">Business Plan</span>
+                </div>
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-sm text-gray-600" id="txt-expiry">Mwisho wa Huduma:</span>
+                    <span class="font-bold text-green-600">30/09/2026</span>
+                </div>
+                <span class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded" id="badge-active">Inafanya Kazi (Active)</span>
+            </div>
+
+            <!-- Subscription Renewal Box (Lipa Namba / Push Payment) -->
+            <div class="bg-white p-5 rounded-lg shadow">
+                <h3 class="font-bold text-gray-800 text-md mb-3" id="txt-renew-title">Lipia Kifurushi cha Mwezi</h3>
+                <p class="text-xs text-gray-500 mb-4" id="txt-renew-desc">Lipia TSH 75,000 kuendelea kutumia AI Sales Assistant.</p>
+                
+                <form class="space-y-3" onsubmit="event.preventDefault(); alert('Ombi la malipo limetumwa kwenye simu yako!');">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1" id="lbl-phone">Namba ya Simu (M-Pesa/Tigo/Airtel)</label>
+                        <input type="text" placeholder="07XXXXXXXX" class="w-full p-2 border border-gray-300 rounded text-sm focus:outline-blue-500" required>
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded text-sm transition" id="btn-pay">
+                        Lipia Sasa (TSH 75,000)
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="md:col-span-2 space-y-6">
+
+            <!-- Social Media Connections -->
+            <div class="bg-white p-5 rounded-lg shadow">
+                <h2 class="font-bold text-gray-800 text-lg mb-4" id="txt-social-title">Unganisha Mitandao Yako</h2>
+                <div class="grid grid-cols-2 gap-3">
+                    <button class="flex items-center justify-between p-3 border rounded hover:bg-gray-50">
+                        <span class="text-sm font-semibold text-pink-600">Instagram</span>
+                        <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Connected</span>
+                    </button>
+                    <button class="flex items-center justify-between p-3 border rounded hover:bg-gray-50">
+                        <span class="text-sm font-semibold text-green-600">WhatsApp</span>
+                        <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Connected</span>
+                    </button>
+                    <button class="flex items-center justify-between p-3 border rounded hover:bg-gray-50">
+                        <span class="text-sm font-semibold text-black">TikTok</span>
+                        <span class="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded">Connect</span>
+                    </button>
+                    <button class="flex items-center justify-between p-3 border rounded hover:bg-gray-50">
+                        <span class="text-sm font-semibold text-blue-600">Facebook</span>
+                        <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Connected</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Product Manager Form -->
+            <div class="bg-white p-5 rounded-lg shadow">
+                <h2 class="font-bold text-gray-800 text-lg mb-4" id="txt-add-product">Ongeza Bidhaa Mpya (Product Catalog)</h2>
+                <form class="space-y-4" onsubmit="event.preventDefault(); alert('Bidhaa imeongezwa kwenye AI Catalog!');">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1" id="lbl-prod-name">Jina la Bidhaa</label>
+                            <input type="text" placeholder="Mfano: Godoro 6x6" class="w-full p-2 border border-gray-300 rounded text-sm focus:outline-blue-500" required>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 mb-1" id="lbl-prod-price">Bei (TSH)</label>
+                            <input type="number" placeholder="250000" class="w-full p-2 border border-gray-300 rounded text-sm focus:outline-blue-500" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1" id="lbl-prod-desc">Maelezo ya Bidhaa (Sifa & Faida)</label>
+                        <textarea placeholder="Eleza sifa zote ambazo AI inapaswa kujua..." class="w-full p-2 border border-gray-300 rounded text-sm focus:outline-blue-500 h-20" required></textarea>
+                    </div>
+                    <button type="submit" class="bg-blue-900 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded text-sm transition" id="btn-save-prod">
+                        Hifadhi Bidhaa
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- JavaScript for Multi-Language Switcher -->
+    <script>
+        const translations = {
+            sw: {
+                statusTitle: "Hali ya Akaunti",
+                pkg: "Kifurushi:",
+                expiry: "Mwisho wa Huduma:",
+                renewTitle: "Lipia Kifurushi cha Mwezi",
+                renewDesc: "Lipia TSH 75,000 kuendelea kutumia AI Sales Assistant.",
+                phoneLbl: "Namba ya Simu (M-Pesa/Tigo/Airtel)",
+                btnPay: "Lipia Sasa (TSH 75,000)",
+                socialTitle: "Unganisha Mitandao Yako",
+                addProduct: "Ongeza Bidhaa Mpya (Product Catalog)",
+                prodName: "Jina la Bidhaa",
+                prodPrice: "Bei (TSH)",
+                prodDesc: "Maelezo ya Bidhaa (Sifa & Faida)",
+                btnSaveProd: "Hifadhi Bidhaa"
+            },
+            en: {
+                statusTitle: "Account Status",
+                pkg: "Subscription:",
+                expiry: "Expiry Date:",
+                renewTitle: "Renew Monthly Subscription",
+                renewDesc: "Pay TSH 75,000 to keep your AI Sales Assistant active.",
+                phoneLbl: "Phone Number (Mobile Money)",
+                btnPay: "Pay Now (TSH 75,000)",
+                socialTitle: "Connect Your Social Accounts",
+                addProduct: "Add New Product (Product Catalog)",
+                prodName: "Product Name",
+                prodPrice: "Price (TSH)",
+                prodDesc: "Product Description & Features",
+                btnSaveProd: "Save Product"
+            }
+        };
+
+        function switchLanguage(lang) {
+            document.getElementById('txt-status-title').innerText = translations[lang].statusTitle;
+            document.getElementById('txt-pkg').innerText = translations[lang].pkg;
+            document.getElementById('txt-expiry').innerText = translations[lang].expiry;
+            document.getElementById('txt-renew-title').innerText = translations[lang].renewTitle;
+            document.getElementById('txt-renew-desc').innerText = translations[lang].renewDesc;
+            document.getElementById('lbl-phone').innerText = translations[lang].phoneLbl;
+            document.getElementById('btn-pay').innerText = translations[lang].btnPay;
+            document.getElementById('txt-social-title').innerText = translations[lang].socialTitle;
+            document.getElementById('txt-add-product').innerText = translations[lang].addProduct;
+            document.getElementById('lbl-prod-name').innerText = translations[lang].prodName;
+            document.getElementById('lbl-prod-price').innerText = translations[lang].prodPrice;
+            document.getElementById('lbl-prod-desc').innerText = translations[lang].prodDesc;
+            document.getElementById('btn-save-prod').innerText = translations[lang].btnSaveProd;
+        }
+    </script>
+</body>
+</html>
