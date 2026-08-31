@@ -1,4 +1,7 @@
+
 fastapi
 uvicorn
-pydantic
+pydantic[email]
+email-validator
 google-generativeai
+python-dotenv
