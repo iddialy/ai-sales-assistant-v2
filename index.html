@@ -161,3 +161,23 @@
     </script>
 </body>
 </html>
+<script>
+  const API_URL = "https://ai-sales-assistant-api-07y0.onrender.com";
+
+  async function sendMessage(prompt) {
+    try {
+      const response = await fetch(`${API_URL}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ message: prompt })
+      });
+      const data = await response.json();
+      console.log("Jibu kutoka kwa AI:", data);
+      return data;
+    } catch (error) {
+      console.error("Kosa la muunganiko:", error);
+    }
+  }
+</script>
