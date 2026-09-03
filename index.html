@@ -1,5 +1,4 @@
-
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="sw">
 <head>
     <meta charset="UTF-8">
@@ -49,8 +48,8 @@
                     <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1">Chagua Kifurushi (Package)</label>
                         <select id="pkgSelect" onchange="updatePayButton()" class="w-full p-2 border border-gray-300 rounded text-sm focus:outline-blue-500 font-semibold text-gray-700">
-                            <option value="35000">Starter Plan - TSH 35,000 (Wateja 1,000)</option>
-                            <option value="75000" selected>Business Unlimited - TSH 75,000 (Unlimited)</option>
+                            <option value="20">Starter Plan - TSH 20 (Wateja 1,000)</option>
+                            <option value="40" selected>Business Unlimited - TSH 40 (Unlimited)</option>
                         </select>
                     </div>
 
@@ -60,7 +59,7 @@
                     </div>
 
                     <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded text-sm transition cursor-pointer" id="btn-pay">
-                        Lipia Sasa (TSH 75,000)
+                        Lipia Sasa (TSH 40)
                     </button>
                 </form>
             </div>
@@ -121,7 +120,8 @@
 
     <!-- JavaScript Handling -->
     <script>
-        const API_URL = "https://products-api-07y0.onrender.com"; 
+        // URL Sahihi ya Render Backend
+        const API_URL = "https://products-api-6acw.onrender.com"; 
 
         // Kubadilisha maandishi ya kitufe cha malipo kutokana na kifurushi kilichochaguliwa
         function updatePayButton() {
@@ -232,6 +232,8 @@
     </script>
 </body>
 </html>
+                           
 
-
+        
+        
                     
