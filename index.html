@@ -1,28 +1,207 @@
 <!DOCTYPE html>
 <html lang="sw">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>SalesAI Tanzania</title><script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SalesAI Tanzania</title>
+<script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800">
-<nav class="bg-blue-950 text-white p-4 flex justify-between items-center"><b class="text-xl">SalesAI <span class="text-xs bg-green-500 px-2 py-1 rounded">Tanzania</span></b><div id="navActions"></div></nav>
+<nav class="bg-blue-950 text-white p-4 flex justify-between items-center gap-3">
+  <b class="text-xl">SalesAI <span class="text-xs bg-green-500 px-2 py-1 rounded">Tanzania</span></b>
+  <div id="navActions"></div>
+</nav>
 <main class="max-w-6xl mx-auto p-4 md:p-8" id="app"></main>
+
+<div id="paymentModal" class="hidden fixed inset-0 bg-black/50 p-4 z-50 items-center justify-center">
+  <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
+    <div class="flex justify-between items-start gap-3">
+      <div><h2 class="text-xl font-bold">Lipa kifurushi</h2><p id="selectedPlan" class="text-sm text-slate-500 mt-1"></p></div>
+      <button onclick="closePayment()" class="text-slate-500 text-xl">×</button>
+    </div>
+    <label class="block text-sm font-semibold mt-5 mb-2">Namba ya simu ya mobile money</label>
+    <input id="paymentPhone" inputmode="tel" placeholder="0712345678" class="w-full border p-3 rounded-xl">
+    <p class="text-xs text-slate-500 mt-2">Usiandike PIN hapa. PIN itaingizwa kwenye simu yako baada ya ombi la malipo kufika.</p>
+    <button id="confirmPayBtn" onclick="confirmPayment()" class="w-full bg-blue-900 text-white p-3 rounded-xl font-bold mt-5">Tuma ombi la malipo</button>
+    <p id="paymentMsg" class="text-sm mt-3"></p>
+  </div>
+</div>
+
 <script>
-const API_URL="https://ai-sales-assistant-api-07y0.onrender.com"; let token=localStorage.getItem('salesai_token'); let me=null;
+const API_URL="https://ai-sales-assistant-api-07y0.onrender.com";
+let token=localStorage.getItem('salesai_token');
+let me=null;
+let selectedPlanCode=null;
+let paymentPoll=null;
 const plans={starter:{name:'Starter',amount:35000,limit:'1,000'},business:{name:'Business',amount:75000,limit:'Unlimited'}};
 const money=n=>new Intl.NumberFormat('sw-TZ').format(n)+' TSH';
-async function api(path,opt={}){opt.headers={...(opt.headers||{}),'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})};const r=await fetch(API_URL+path,opt);const d=await r.json();if(!r.ok)throw Error(d.detail||'Kuna tatizo');return d}
-function authScreen(){document.getElementById('app').innerHTML=`<div class="max-w-md mx-auto bg-white p-6 rounded-2xl shadow"><div class="flex gap-2 mb-6"><button id="loginTab" class="flex-1 bg-blue-900 text-white p-2 rounded">Login</button><button id="signupTab" class="flex-1 border p-2 rounded">Sign Up</button></div><div id="authForm"></div></div>`;showLogin();}
-function showLogin(){document.getElementById('authForm').innerHTML=`<h1 class="text-2xl font-bold mb-2">Karibu tena</h1><p class="text-sm text-slate-500 mb-4">Ingia kwenye akaunti ya biashara yako.</p><input id="email" type="email" placeholder="Email" class="w-full border p-3 rounded mb-3"><input id="password" type="password" placeholder="Password" class="w-full border p-3 rounded mb-4"><button onclick="login()" class="w-full bg-blue-900 text-white p-3 rounded font-bold">Login</button><p id="authMsg" class="text-sm mt-3"></p>`;document.getElementById('loginTab').onclick=showLogin;document.getElementById('signupTab').onclick=showSignup}
-function showSignup(){document.getElementById('authForm').innerHTML=`<h1 class="text-2xl font-bold mb-2">Fungua akaunti</h1><p class="text-sm text-slate-500 mb-4">Anza kuuza 24/7 kwa AI.</p><input id="biz" placeholder="Jina la biashara" class="w-full border p-3 rounded mb-3"><input id="email" type="email" placeholder="Email" class="w-full border p-3 rounded mb-3"><input id="phone" placeholder="07XXXXXXXX" class="w-full border p-3 rounded mb-3"><input id="password" type="password" placeholder="Password (angalau herufi 8)" class="w-full border p-3 rounded mb-4"><button onclick="signup()" class="w-full bg-green-600 text-white p-3 rounded font-bold">Sign Up</button><p id="authMsg" class="text-sm mt-3"></p>`;document.getElementById('loginTab').onclick=showLogin;document.getElementById('signupTab').onclick=showSignup}
-async function login(){try{let d=await api('/auth/login',{method:'POST',body:JSON.stringify({email:email.value,password:password.value})});token=d.token;localStorage.setItem('salesai_token',token);load()}catch(e){authMsg.textContent=e.message;authMsg.className='text-sm mt-3 text-red-600'}}
-async function signup(){try{let d=await api('/auth/signup',{method:'POST',body:JSON.stringify({business_name:biz.value,email:email.value,phone_number:phone.value,password:password.value})});token=d.token;localStorage.setItem('salesai_token',token);load()}catch(e){authMsg.textContent=e.message;authMsg.className='text-sm mt-3 text-red-600'}}
-async function load(){try{me=await api('/auth/me');dashboard()}catch(e){token=null;localStorage.removeItem('salesai_token');authScreen()}}
-function dashboard(){document.getElementById('navActions').innerHTML=`<button onclick="logout()" class="bg-white/10 px-3 py-2 rounded">Logout</button>`;document.getElementById('app').innerHTML=`<div class="mb-6"><h1 class="text-3xl font-bold">Karibu, ${me.business_name}</h1><p class="text-slate-500">Dhibiti AI Sales Assistant ya biashara yako.</p></div><div class="grid md:grid-cols-3 gap-4 mb-6"><div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Kifurushi</p><b class="text-xl">${me.plan_code==='none'?'Haijalipiwa':plans[me.plan_code].name}</b></div><div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Matumizi</p><b class="text-xl">${me.message_limit===null?'Unlimited':me.messages_used+' / '+me.message_limit}</b></div><div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Status</p><b class="text-xl ${me.subscription_status==='Active'?'text-green-600':'text-red-600'}">${me.subscription_status}</b></div></div><section class="bg-white p-6 rounded-2xl shadow mb-6"><h2 class="text-xl font-bold mb-4">Chagua Kifurushi</h2><div class="grid md:grid-cols-2 gap-4"><div class="border-2 rounded-xl p-5"><h3 class="text-xl font-bold">Starter</h3><p class="text-3xl font-black my-2">35,000 TSH</p><p class="mb-4">AI ijibu hadi <b>1,000</b> messages kwa mwezi.</p><button onclick="pay('starter')" class="w-full bg-blue-900 text-white p-3 rounded font-bold">Lipa Starter</button></div><div class="border-2 border-blue-700 rounded-xl p-5"><h3 class="text-xl font-bold">Business</h3><p class="text-3xl font-black my-2">75,000 TSH</p><p class="mb-4"><b>Unlimited</b> messages kwa mwezi.</p><button onclick="pay('business')" class="w-full bg-green-600 text-white p-3 rounded font-bold">Lipa Business</button></div></div><p id="payMsg" class="mt-4 text-sm"></p></section><section class="bg-white p-6 rounded-2xl shadow"><h2 class="text-xl font-bold mb-4">Product Catalog</h2><div class="grid md:grid-cols-3 gap-3"><input id="pname" placeholder="Jina la bidhaa" class="border p-3 rounded"><input id="pprice" type="number" placeholder="Bei TSH" class="border p-3 rounded"><input id="pdesc" placeholder="Maelezo" class="border p-3 rounded"><button onclick="addProduct()" class="md:col-span-3 bg-blue-900 text-white p-3 rounded font-bold">Hifadhi Bidhaa</button></div><div id="products" class="mt-5"></div></section>`;loadProducts()}
-async function pay(plan){let phone=prompt('Weka namba ya simu ya malipo, mfano 0712345678');if(!phone)return;payMsg.textContent='Tunatengeneza malipo...';try{let d=await api('/payments/create',{method:'POST',body:JSON.stringify({plan_code:plan,phone})});if(d.checkout_url){window.location.href=d.checkout_url}else payMsg.textContent=d.message||'Payment gateway bado haijaunganishwa.'}catch(e){payMsg.textContent=e.message}}
-async function addProduct(){try{await api('/products',{method:'POST',body:JSON.stringify({product_name:pname.value,price:Number(pprice.value),description:pdesc.value})});pname.value=pprice.value=pdesc.value='';loadProducts()}catch(e){alert(e.message)}}
-async function loadProducts(){try{let ps=await api('/products');products.innerHTML=ps.length?ps.map(p=>`<div class="border p-3 rounded mt-2"><b>${p.product_name}</b> — ${money(p.price)}<div class="text-sm text-slate-500">${p.description}</div></div>`).join(''):'<p class="text-slate-500">Bado hujaweka bidhaa.</p>'}catch(e){}}
-async function checkReturnedPayment(){const q=new URLSearchParams(location.search);const ref=q.get('reference');if(!ref||!token)return;try{let d=await api('/payments/'+encodeURIComponent(ref));if(d.status==='PAID'){alert('Malipo yamepokelewa. Subscription yako imewashwa.');}else if(d.status==='PENDING'){alert('Malipo bado yanathibitishwa. Rudi dashboard baada ya muda mfupi.');}else{alert('Malipo hayajakamilika: '+d.status);}}catch(e){console.log(e)}history.replaceState({},'',location.pathname)}
-function logout(){localStorage.removeItem('salesai_token');token=null;location.reload()}
-if(token)load().then(()=>checkReturnedPayment());else authScreen();
-</script></body></html>
+
+async function api(path,opt={}){
+  opt.headers={...(opt.headers||{}),'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})};
+  const r=await fetch(API_URL+path,opt);
+  let d={}; try{d=await r.json()}catch(_){d={detail:'Server haikurudisha jibu sahihi'}}
+  if(!r.ok) throw Error(d.detail||d.message||'Kuna tatizo');
+  return d;
+}
+
+function authScreen(){
+  document.getElementById('navActions').innerHTML='';
+  document.getElementById('app').innerHTML=`
+  <div class="max-w-md mx-auto bg-white p-6 rounded-2xl shadow">
+    <div class="flex gap-2 mb-6">
+      <button id="loginTab" class="flex-1 bg-blue-900 text-white p-2 rounded-xl">Login</button>
+      <button id="signupTab" class="flex-1 border p-2 rounded-xl">Sign Up</button>
+    </div>
+    <div id="authForm"></div>
+  </div>`;
+  showLogin();
+}
+
+function showLogin(){
+  document.getElementById('authForm').innerHTML=`
+    <h1 class="text-2xl font-bold mb-2">Karibu tena</h1>
+    <p class="text-sm text-slate-500 mb-4">Ingia kwenye akaunti ya biashara yako.</p>
+    <input id="loginEmail" type="email" autocomplete="email" placeholder="Email" class="w-full border p-3 rounded-xl mb-3">
+    <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" class="w-full border p-3 rounded-xl mb-4">
+    <button id="loginBtn" onclick="login()" class="w-full bg-blue-900 text-white p-3 rounded-xl font-bold">Login</button>
+    <p id="authMsg" class="text-sm mt-3"></p>`;
+  document.getElementById('loginTab').onclick=showLogin;
+  document.getElementById('signupTab').onclick=showSignup;
+}
+
+function showSignup(){
+  document.getElementById('authForm').innerHTML=`
+    <h1 class="text-2xl font-bold mb-2">Fungua akaunti</h1>
+    <p class="text-sm text-slate-500 mb-4">Anza kuuza 24/7 kwa AI.</p>
+    <input id="signupBiz" placeholder="Jina la biashara" class="w-full border p-3 rounded-xl mb-3">
+    <input id="signupEmail" type="email" autocomplete="email" placeholder="Email" class="w-full border p-3 rounded-xl mb-3">
+    <input id="signupPhone" inputmode="tel" placeholder="07XXXXXXXX" class="w-full border p-3 rounded-xl mb-3">
+    <input id="signupPassword" type="password" autocomplete="new-password" placeholder="Password (angalau herufi 8)" class="w-full border p-3 rounded-xl mb-4">
+    <button id="signupBtn" onclick="signup()" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold">Sign Up</button>
+    <p id="authMsg" class="text-sm mt-3"></p>`;
+  document.getElementById('loginTab').onclick=showLogin;
+  document.getElementById('signupTab').onclick=showSignup;
+}
+
+async function login(){
+  const msg=document.getElementById('authMsg');
+  const btn=document.getElementById('loginBtn');
+  btn.disabled=true; btn.textContent='Inaingia...'; msg.textContent='';
+  try{
+    const d=await api('/auth/login',{method:'POST',body:JSON.stringify({email:document.getElementById('loginEmail').value.trim(),password:document.getElementById('loginPassword').value})});
+    token=d.token; localStorage.setItem('salesai_token',token); await load();
+  }catch(e){msg.textContent=e.message;msg.className='text-sm mt-3 text-red-600';btn.disabled=false;btn.textContent='Login';}
+}
+
+async function signup(){
+  const msg=document.getElementById('authMsg');
+  const btn=document.getElementById('signupBtn');
+  btn.disabled=true; btn.textContent='Inafungua account...'; msg.textContent='';
+  try{
+    const d=await api('/auth/signup',{method:'POST',body:JSON.stringify({
+      business_name:document.getElementById('signupBiz').value.trim(),
+      email:document.getElementById('signupEmail').value.trim(),
+      phone_number:document.getElementById('signupPhone').value.trim(),
+      password:document.getElementById('signupPassword').value
+    })});
+    token=d.token; localStorage.setItem('salesai_token',token); await load();
+  }catch(e){msg.textContent=e.message;msg.className='text-sm mt-3 text-red-600';btn.disabled=false;btn.textContent='Sign Up';}
+}
+
+async function load(){
+  try{me=await api('/auth/me');dashboard();}
+  catch(e){token=null;localStorage.removeItem('salesai_token');authScreen();}
+}
+
+function dashboard(){
+  document.getElementById('navActions').innerHTML=`<button onclick="logout()" class="bg-white/10 px-3 py-2 rounded-xl">Logout</button>`;
+  const planName=me.plan_code==='none'?'Haijalipiwa':(plans[me.plan_code]?.name||me.plan_code);
+  const expiry=me.expiry_date?new Date(me.expiry_date).toLocaleDateString('sw-TZ'): '-';
+  document.getElementById('app').innerHTML=`
+  <div class="mb-6"><h1 class="text-3xl font-bold">Karibu, ${escapeHtml(me.business_name)}</h1><p class="text-slate-500">Dhibiti AI Sales Assistant ya biashara yako.</p></div>
+  <div class="grid md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Kifurushi</p><b class="text-xl">${planName}</b></div>
+    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Matumizi</p><b class="text-xl">${me.message_limit===null?'Unlimited':me.messages_used+' / '+me.message_limit}</b></div>
+    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Status</p><b class="text-xl ${me.subscription_status==='Active'?'text-green-600':'text-red-600'}">${me.subscription_status}</b></div>
+    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Inaisha</p><b class="text-xl">${expiry}</b></div>
+  </div>
+  <section class="bg-white p-6 rounded-2xl shadow mb-6">
+    <h2 class="text-xl font-bold mb-2">Anzisha AI kwa malipo</h2>
+    <p class="text-sm text-slate-500 mb-4">Chagua kifurushi, weka namba ya mobile money, kisha thibitisha PIN kwenye simu yako.</p>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div class="border-2 rounded-xl p-5"><h3 class="text-xl font-bold">Starter</h3><p class="text-3xl font-black my-2">35,000 TSH</p><p class="mb-4">Hadi <b>1,000</b> messages kwa mwezi.</p><button onclick="openPayment('starter')" class="w-full bg-blue-900 text-white p-3 rounded-xl font-bold">Lipa Starter</button></div>
+      <div class="border-2 border-blue-700 rounded-xl p-5"><h3 class="text-xl font-bold">Business</h3><p class="text-3xl font-black my-2">75,000 TSH</p><p class="mb-4"><b>Unlimited</b> messages kwa mwezi.</p><button onclick="openPayment('business')" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold">Lipa Business</button></div>
+    </div>
+    <p id="payMsg" class="mt-4 text-sm"></p>
+  </section>
+  <section class="bg-white p-6 rounded-2xl shadow">
+    <h2 class="text-xl font-bold mb-4">Product Catalog</h2>
+    <div class="grid md:grid-cols-3 gap-3"><input id="pname" placeholder="Jina la bidhaa" class="border p-3 rounded-xl"><input id="pprice" type="number" placeholder="Bei TSH" class="border p-3 rounded-xl"><input id="pdesc" placeholder="Maelezo" class="border p-3 rounded-xl"><button onclick="addProduct()" class="md:col-span-3 bg-blue-900 text-white p-3 rounded-xl font-bold">Hifadhi Bidhaa</button></div>
+    <div id="products" class="mt-5"></div>
+  </section>`;
+  loadProducts();
+}
+
+function openPayment(code){
+  selectedPlanCode=code;
+  document.getElementById('selectedPlan').textContent=`${plans[code].name} — ${money(plans[code].amount)}`;
+  document.getElementById('paymentPhone').value=me.phone_number||'';
+  document.getElementById('paymentMsg').textContent='';
+  document.getElementById('paymentModal').classList.remove('hidden');
+  document.getElementById('paymentModal').classList.add('flex');
+}
+function closePayment(){
+  document.getElementById('paymentModal').classList.add('hidden');
+  document.getElementById('paymentModal').classList.remove('flex');
+  if(paymentPoll){clearInterval(paymentPoll);paymentPoll=null;}
+}
+
+async function confirmPayment(){
+  const btn=document.getElementById('confirmPayBtn');
+  const msg=document.getElementById('paymentMsg');
+  const phone=document.getElementById('paymentPhone').value.trim();
+  btn.disabled=true; btn.textContent='Inatuma...'; msg.textContent='';
+  try{
+    const d=await api('/payments/create',{method:'POST',body:JSON.stringify({plan_code:selectedPlanCode,phone})});
+    msg.textContent='Ombi limetumwa. Angalia simu yako na ingiza PIN kwenye mobile money. Usiiandike hapa.';
+    msg.className='text-sm mt-3 text-green-700';
+    btn.textContent='Subiri uthibitisho...';
+    pollPayment(d.reference);
+  }catch(e){msg.textContent=e.message;msg.className='text-sm mt-3 text-red-600';btn.disabled=false;btn.textContent='Tuma ombi la malipo';}
+}
+
+function pollPayment(reference){
+  if(paymentPoll)clearInterval(paymentPoll);
+  let tries=0;
+  paymentPoll=setInterval(async()=>{
+    tries++;
+    try{
+      const p=await api('/payments/'+encodeURIComponent(reference));
+      if(['PAID','SUCCESSFUL'].includes(p.status)){
+        clearInterval(paymentPoll); paymentPoll=null;
+        document.getElementById('paymentMsg').textContent='Malipo yamepokelewa. AI imewashwa.';
+        document.getElementById('paymentMsg').className='text-sm mt-3 text-green-700';
+        setTimeout(async()=>{closePayment();await load();},1200);
+      }else if(['FAILED','REJECTED','CANCELLED','CUSTOMER_REJECTED','REFUNDED'].includes(p.status)){
+        clearInterval(paymentPoll); paymentPoll=null;
+        document.getElementById('paymentMsg').textContent='Malipo hayajakamilika: '+p.status;
+        document.getElementById('paymentMsg').className='text-sm mt-3 text-red-600';
+        const b=document.getElementById('confirmPayBtn');b.disabled=false;b.textContent='Jaribu tena';
+      }
+    }catch(_){ }
+    if(tries>=30){clearInterval(paymentPoll);paymentPoll=null;document.getElementById('paymentMsg').textContent='Bado tunasubiri uthibitisho. Kama umeingiza PIN, subiri kidogo kisha refresh.';document.getElementById('confirmPayBtn').disabled=false;document.getElementById('confirmPayBtn').textContent='Tuma ombi tena';}
+  },10000);
+}
+
+async function addProduct(){
+  try{await api('/products',{method:'POST',body:JSON.stringify({product_name:document.getElementById('pname').value,price:Number(document.getElementById('pprice').value),description:document.getElementById('pdesc').value})});document.getElementById('pname').value='';document.getElementById('pprice').value='';document.getElementById('pdesc').value='';loadProducts();}catch(e){alert(e.message)}
+}
+async function loadProducts(){
+  try{const ps=await api('/products');document.getElementById('products').innerHTML=ps.length?ps.map(p=>`<div class="border p-3 rounded-xl mt-2"><b>${escapeHtml(p.product_name)}</b> — ${money(p.price)}<div class="text-sm text-slate-500">${escapeHtml(p.description)}</div></div>`).join(''):'<p class="text-slate-500">Bado hujaweka bidhaa.</p>';}catch(_){ }
+}
+function escapeHtml(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function logout(){localStorage.removeItem('salesai_token');token=null;location.reload();}
+if(token)load();else authScreen();
+</script>
+</body>
+</html>

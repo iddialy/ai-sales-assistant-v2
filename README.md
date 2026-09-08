@@ -1,33 +1,37 @@
-# AI Sales Assistant Tanzania — Payment-ready v3
+# AI Sales Assistant Tanzania v5
 
-This version adds merchant accounts, product catalog, subscriptions, MalipoPay hosted checkout, signed MalipoPay webhooks, and AI access control.
+Version hii inarekebisha mambo matatu ya msingi:
 
-## Plans
-- Starter: TSh 35,000/month, 1,000 AI responses/messages counted by the app.
-- Business: TSh 75,000/month, unlimited.
+1. **Login/Signup persistence** — production inapaswa kutumia PostgreSQL kupitia `DATABASE_URL`, si SQLite ya local filesystem.
+2. **Payment phone form** — website ina form ya namba ya mobile money badala ya browser `prompt()`.
+3. **MalipoPay v2 direct collection** — server inatuma collection request kwa `/api/v2/payment/collection`. MNO hugunduliwa kutoka namba ya simu; PIN haikusanywi na website.
 
-## MalipoPay
-The backend uses MalipoPay hosted checkout (`POST /api/v1/payment/link`) with the `apiToken` header. The payment reference created by this app is stored in the database. MalipoPay calls `/webhook/malipopay` after payment events.
+## Environment variables za Render
 
-Required Render environment variables:
-- `MALIPOPAY_API_TOKEN` — your MalipoPay API credential. Keep secret.
-- `MALIPOPAY_WEBHOOK_SECRET` — the per-webhook signing secret from MalipoPay Settings > Webhooks. Keep secret.
-- `MALIPO_BASE_URL=https://core-prod.malipopay.co.tz`
-- `FRONTEND_URL=https://iddialy.github.io/ai-sales-assistant-v2/`
-- `CORS_ORIGINS=https://iddialy.github.io`
-- `JWT_SECRET` — long random secret.
-- `GEMINI_API_KEY` and `GEMINI_MODEL`.
-- `DATABASE_URL` for PostgreSQL in production.
+Weka hizi kwenye Render:
 
-## Webhook URL
-After deployment, configure:
-`https://YOUR-RENDER-SERVICE.onrender.com/webhook/malipopay`
+- `DATABASE_URL` = connection string ya PostgreSQL ya Render
+- `JWT_SECRET` = secret ndefu ya kipekee
+- `GEMINI_API_KEY` = Gemini API key
+- `GEMINI_MODEL` = mfano `gemini-1.5-flash`
+- `CORS_ORIGINS` = `https://iddialy.github.io`
+- `MALIPO_BASE_URL` = `https://core-prod.malipopay.co.tz`
+- `MALIPOPAY_API_TOKEN` = **Secret/API key ya MalipoPay kutoka Settings → API Keys** (`mp_sk_prod_...`), si webhook signing secret
+- `MALIPOPAY_WEBHOOK_SECRET` = **View Signing Secret** ya webhook uliyounda
+- `WEBHOOK_SECRET` = optional, kwa endpoint ya `/webhook/message`
 
-The webhook verifies the `X-Malipopay-Signature` HMAC-SHA256 header over the raw request body before processing payment confirmation.
+MalipoPay docs zinasema API key inawekwa kwenye header `apiToken`, na collection ya v2 hutumia `service: mobile` + `account` ya simu. MNO hugunduliwa kutoka namba. Webhook signature ni HMAC-SHA256 ya raw body na signing secret ya webhook.
 
 ## Render
-Build command:
-`pip install -r requirements.txt`
 
-Start command:
-`uvicorn main:app --host 0.0.0.0 --port $PORT`
+Backend start command:
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+Baada ya PostgreSQL kuunganishwa, app itatengeneza tables zenyewe wakati wa startup.
+
+## Muhimu kuhusu MalipoPay sandbox
+
+Akaunti ambayo haija-approve go-live huwa na restriction ya **Test Recipients**. Namba unayotaka ku-charge inapaswa kuwa imeongezwa kwenye MalipoPay Settings → Test Recipients kabla ya test collection.

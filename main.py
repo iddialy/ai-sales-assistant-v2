@@ -1,22 +1,28 @@
-import os, uuid, hmac, hashlib
+import hashlib
+import hmac
+import json
+import os
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
 import httpx
 import jwt
-from fastapi import FastAPI, Depends, HTTPException, Header, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from pwdlib import PasswordHash
 from sqlalchemy.orm import Session
 
-from models import Base, engine, SessionLocal, Merchant, MerchantPaymentInfo, Product, Payment
 from ai_engine import generate_ai_sales_response
+from models import Base, Merchant, MerchantPaymentInfo, Payment, Product, SessionLocal, engine
 
 Base.metadata.create_all(bind=engine)
-app = FastAPI(title="AI Sales Assistant Tanzania", version="3.0.1")
 
-origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if x.strip()]
+app = FastAPI(title="AI Sales Assistant Tanzania", version="5.0.0")
+
+cors_raw = os.getenv("CORS_ORIGINS", "https://iddialy.github.io")
+origins = [x.strip() for x in cors_raw.split(",") if x.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -28,7 +34,6 @@ app.add_middleware(
 password_hash = PasswordHash.recommended()
 JWT_SECRET = os.getenv("JWT_SECRET", "CHANGE_ME_IN_RENDER")
 JWT_ALG = "HS256"
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://iddialy.github.io/ai-sales-assistant-v2/")
 MALIPO_BASE = os.getenv("MALIPO_BASE_URL", "https://core-prod.malipopay.co.tz").rstrip("/")
 MALIPO_TOKEN = os.getenv("MALIPOPAY_API_TOKEN", "")
 MALIPO_WEBHOOK_SECRET = os.getenv("MALIPOPAY_WEBHOOK_SECRET", "")
@@ -38,87 +43,101 @@ PLANS = {
     "business": {"name": "Business", "amount": 75000, "limit": None},
 }
 
+
 class SignupIn(BaseModel):
-    business_name: str
+    business_name: str = Field(min_length=2, max_length=200)
     email: EmailStr
     phone_number: str
-    password: str
+    password: str = Field(min_length=8, max_length=128)
     language_preference: str = "sw"
+
 
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
 
+
 class ProductIn(BaseModel):
-    product_name: str
-    price: float
-    description: str
+    product_name: str = Field(min_length=1, max_length=200)
+    price: float = Field(ge=0)
+    description: str = ""
+
 
 class PaymentIn(BaseModel):
     plan_code: str
     phone: str
 
+
 class ChatIn(BaseModel):
-    message: str
+    message: str = Field(min_length=1)
     platform: str = "web"
 
 
 def db():
-    s = SessionLocal()
+    session = SessionLocal()
     try:
-        yield s
+        yield session
     finally:
-        s.close()
+        session.close()
 
 
-def token_for(m: Merchant):
+def token_for(merchant: Merchant) -> str:
     return jwt.encode(
-        {"sub": m.user_id, "exp": datetime.utcnow() + timedelta(days=7)},
+        {"sub": merchant.user_id, "exp": datetime.utcnow() + timedelta(days=7)},
         JWT_SECRET,
         algorithm=JWT_ALG,
     )
 
 
-def current_merchant(authorization: Optional[str] = Header(None), db: Session = Depends(db)):
+def current_merchant(
+    authorization: Optional[str] = Header(None),
+    session: Session = Depends(db),
+) -> Merchant:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Login required")
     try:
         payload = jwt.decode(authorization.split(" ", 1)[1], JWT_SECRET, algorithms=[JWT_ALG])
     except jwt.PyJWTError:
-        raise HTTPException(401, "Invalid or expired token")
-    m = db.get(Merchant, payload.get("sub"))
-    if not m:
-        raise HTTPException(401, "Account not found")
-    return m
+        raise HTTPException(401, "Session ime-expire. Ingia tena.")
+    merchant_id = payload.get("sub")
+    merchant = session.get(Merchant, merchant_id)
+    if not merchant:
+        raise HTTPException(401, "Account haipo kwenye database. Tafadhali fungua account tena.")
+    return merchant
 
 
 def normalize_phone(phone: str) -> str:
-    p = "".join(c for c in phone if c.isdigit())
-    if p.startswith("0"):
-        p = "255" + p[1:]
-    if not p.startswith("255") or len(p) != 12:
+    digits = "".join(c for c in phone if c.isdigit())
+    if digits.startswith("0"):
+        digits = "255" + digits[1:]
+    if not digits.startswith("255") or len(digits) != 12:
         raise HTTPException(400, "Tafadhali tumia namba ya Tanzania, mfano 0712345678")
-    return p
+    return digits
 
 
-def public_merchant(m):
+def public_merchant(merchant: Merchant):
     return {
-        "user_id": m.user_id,
-        "business_name": m.business_name,
-        "email": m.email,
-        "phone_number": m.phone_number,
-        "plan_code": m.plan_code,
-        "subscription_status": m.subscription_status,
-        "expiry_date": m.expiry_date,
-        "message_limit": m.message_limit,
-        "messages_used": m.messages_used,
+        "user_id": merchant.user_id,
+        "business_name": merchant.business_name,
+        "email": merchant.email,
+        "phone_number": merchant.phone_number,
+        "plan_code": merchant.plan_code,
+        "subscription_status": merchant.subscription_status,
+        "expiry_date": merchant.expiry_date.isoformat() if merchant.expiry_date else None,
+        "message_limit": merchant.message_limit,
+        "messages_used": merchant.messages_used,
     }
 
 
 def activate_subscription(payment: Payment, merchant: Merchant, now: datetime):
     plan = PLANS[payment.plan_code]
-    # If the merchant is already active, extend from the current expiry.
-    base = merchant.expiry_date if merchant.subscription_status == "Active" and merchant.expiry_date and merchant.expiry_date > now else now
+    base = (
+        merchant.expiry_date
+        if merchant.subscription_status == "Active"
+        and merchant.expiry_date
+        and merchant.expiry_date > now
+        else now
+    )
     merchant.subscription_status = "Active"
     merchant.plan_code = payment.plan_code
     merchant.message_limit = plan["limit"]
@@ -132,23 +151,38 @@ def verify_webhook_signature(raw_body: bytes, signature_header: Optional[str]) -
     provided = (signature_header or "").strip()
     if provided.startswith("sha256="):
         provided = provided[len("sha256="):]
-    expected = hmac.new(MALIPO_WEBHOOK_SECRET.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+    expected = hmac.new(
+        MALIPO_WEBHOOK_SECRET.encode("utf-8"), raw_body, hashlib.sha256
+    ).hexdigest()
     return hmac.compare_digest(provided, expected)
 
 
 @app.get("/")
 def root():
-    return {"system_status": "Online", "service": "AI Sales Assistant Tanzania", "version": "3.0.1"}
+    return {
+        "system_status": "Online",
+        "service": "AI Sales Assistant Tanzania",
+        "version": "5.0.0",
+    }
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "database": "configured" if os.getenv("DATABASE_URL") else "sqlite-fallback",
+        "malipopay_api_key": bool(MALIPO_TOKEN),
+        "webhook_secret": bool(MALIPO_WEBHOOK_SECRET),
+    }
 
 
 @app.post("/auth/signup")
-def signup(data: SignupIn, db: Session = Depends(db)):
-    if len(data.password) < 8:
-        raise HTTPException(400, "Password iwe na angalau herufi 8")
-    email = data.email.lower()
-    if db.query(Merchant).filter(Merchant.email == email).first():
-        raise HTTPException(409, "Email tayari imesajiliwa")
-    m = Merchant(
+def signup(data: SignupIn, session: Session = Depends(db)):
+    email = str(data.email).lower().strip()
+    if session.query(Merchant).filter(Merchant.email == email).first():
+        raise HTTPException(409, "Email tayari imesajiliwa. Tumia Login.")
+
+    merchant = Merchant(
         user_id="m_" + uuid.uuid4().hex[:16],
         business_name=data.business_name.strip(),
         email=email,
@@ -156,29 +190,39 @@ def signup(data: SignupIn, db: Session = Depends(db)):
         password_hash=password_hash.hash(data.password),
         language_preference=data.language_preference,
     )
-    m.payment_info = MerchantPaymentInfo(phone_payment=m.phone_number)
-    db.add(m)
-    db.commit()
-    db.refresh(m)
-    return {"token": token_for(m), "merchant": public_merchant(m)}
+    merchant.payment_info = MerchantPaymentInfo(phone_payment=merchant.phone_number)
+    session.add(merchant)
+    session.commit()
+    session.refresh(merchant)
+    return {"token": token_for(merchant), "merchant": public_merchant(merchant)}
 
 
 @app.post("/auth/login")
-def login(data: LoginIn, db: Session = Depends(db)):
-    m = db.query(Merchant).filter(Merchant.email == data.email.lower()).first()
-    if not m or not password_hash.verify(data.password, m.password_hash):
-        raise HTTPException(401, "Email au password si sahihi")
-    return {"token": token_for(m), "merchant": public_merchant(m)}
+def login(data: LoginIn, session: Session = Depends(db)):
+    email = str(data.email).lower().strip()
+    merchant = session.query(Merchant).filter(Merchant.email == email).first()
+    if not merchant:
+        raise HTTPException(401, "Account haipo. Hakikisha email au fungua Sign Up.")
+    try:
+        valid = password_hash.verify(data.password, merchant.password_hash)
+    except Exception:
+        valid = False
+    if not valid:
+        raise HTTPException(401, "Password si sahihi.")
+    return {"token": token_for(merchant), "merchant": public_merchant(merchant)}
 
 
 @app.get("/auth/me")
-def me(m: Merchant = Depends(current_merchant), db: Session = Depends(db)):
-    db.refresh(m)
-    # Keep status consistent if the subscription has expired.
-    if m.subscription_status == "Active" and m.expiry_date and datetime.utcnow() >= m.expiry_date:
-        m.subscription_status = "Expired"
-        db.commit()
-    return public_merchant(m)
+def me(merchant: Merchant = Depends(current_merchant), session: Session = Depends(db)):
+    session.refresh(merchant)
+    if (
+        merchant.subscription_status == "Active"
+        and merchant.expiry_date
+        and datetime.utcnow() >= merchant.expiry_date
+    ):
+        merchant.subscription_status = "Expired"
+        session.commit()
+    return public_merchant(merchant)
 
 
 @app.get("/plans")
@@ -187,103 +231,109 @@ def plans():
 
 
 @app.post("/products")
-def add_product(data: ProductIn, m: Merchant = Depends(current_merchant), db: Session = Depends(db)):
-    if data.price < 0:
-        raise HTTPException(400, "Bei haiwezi kuwa chini ya sifuri")
-    p = Product(
+def add_product(
+    data: ProductIn,
+    merchant: Merchant = Depends(current_merchant),
+    session: Session = Depends(db),
+):
+    product = Product(
         product_id="p_" + uuid.uuid4().hex[:16],
-        merchant_id=m.user_id,
+        merchant_id=merchant.user_id,
         product_name=data.product_name.strip(),
         price=data.price,
         description=data.description.strip(),
     )
-    db.add(p)
-    db.commit()
-    return {"status": "success", "product_id": p.product_id}
+    session.add(product)
+    session.commit()
+    return {"status": "success", "product_id": product.product_id}
 
 
 @app.get("/products")
-def products(m: Merchant = Depends(current_merchant)):
+def products(merchant: Merchant = Depends(current_merchant)):
     return [
-        {"product_id": p.product_id, "product_name": p.product_name, "price": p.price, "description": p.description}
-        for p in m.products
+        {
+            "product_id": p.product_id,
+            "product_name": p.product_name,
+            "price": p.price,
+            "description": p.description,
+        }
+        for p in merchant.products
     ]
 
 
 @app.post("/payments/create")
-async def create_payment(data: PaymentIn, m: Merchant = Depends(current_merchant), db: Session = Depends(db)):
+async def create_payment(
+    data: PaymentIn,
+    merchant: Merchant = Depends(current_merchant),
+    session: Session = Depends(db),
+):
     if data.plan_code not in PLANS:
         raise HTTPException(400, "Kifurushi hakipo")
     if not MALIPO_TOKEN:
-        raise HTTPException(503, "MalipoPay API token haijawekwa kwenye Render")
+        raise HTTPException(503, "MalipoPay API key haijawekwa kwenye Render")
 
     phone = normalize_phone(data.phone)
     plan = PLANS[data.plan_code]
-    reference = "SAI-" + uuid.uuid4().hex[:18].upper()
+    customer_reference = "SAI-" + uuid.uuid4().hex[:18].upper()
+
     payment = Payment(
-        merchant_id=m.user_id,
-        reference=reference,
+        merchant_id=merchant.user_id,
+        reference=customer_reference,
         plan_code=data.plan_code,
         amount=plan["amount"],
         phone=phone,
         status="PENDING",
     )
-    db.add(payment)
-    db.commit()
-    db.refresh(payment)
+    session.add(payment)
+    session.commit()
+    session.refresh(payment)
 
-    # MalipoPay hosted checkout: it handles the payment UI and redirects the customer back.
+    # MalipoPay v2 direct collection. The MNO is detected from the phone number.
     payload = {
-        "amount": plan["amount"],
-        "currency": "TZS",
+        "reference": customer_reference,
         "description": f"AI Sales Assistant - {plan['name']}",
-        "callbackUrl": f"{FRONTEND_URL}?payment=complete&reference={reference}",
-        "reference": reference,
+        "amount": plan["amount"],
+        "service": "mobile",
+        "account": phone,
+        "amountType": "FULL",
     }
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(
-                f"{MALIPO_BASE}/api/v1/payment/link",
+            response = await client.post(
+                f"{MALIPO_BASE}/api/v2/payment/collection",
                 headers={"apiToken": MALIPO_TOKEN, "Content-Type": "application/json"},
                 json=payload,
             )
     except httpx.HTTPError as exc:
         payment.status = "FAILED"
-        db.commit()
+        session.commit()
         raise HTTPException(502, f"MalipoPay haijapatikana: {exc}")
 
     try:
-        out = r.json()
+        gateway = response.json()
     except ValueError:
-        out = {"message": r.text[:500]}
+        gateway = {"success": False, "message": response.text[:500]}
 
-    if r.status_code >= 400 or out.get("success") is False:
+    if response.status_code >= 400 or gateway.get("success") is False:
         payment.status = "FAILED"
-        db.commit()
-        gateway_message = out.get("message") or "Payment gateway imekataa ombi"
-        raise HTTPException(502, gateway_message)
+        session.commit()
+        message = gateway.get("message") or "MalipoPay imekataa ombi la malipo."
+        raise HTTPException(502, message)
 
-    data_out = out.get("data") or {}
-    payment.checkout_url = (
-        data_out.get("paymentUrl")
-        or data_out.get("url")
-        or data_out.get("checkoutUrl")
-        or out.get("paymentUrl")
-        or out.get("url")
-        or out.get("checkoutUrl")
-    )
-    db.commit()
-
-    if not payment.checkout_url:
-        raise HTTPException(502, "MalipoPay haikurudisha checkout URL")
+    data_out = gateway.get("data") or {}
+    payment.status = str(data_out.get("status") or "PROCESSING").upper()
+    payment.external_reference = data_out.get("reference")
+    payment.checkout_url = data_out.get("link")
+    session.commit()
 
     return {
-        "status": "pending",
-        "reference": reference,
+        "status": payment.status,
+        "reference": payment.reference,
+        "external_reference": payment.external_reference,
         "amount": plan["amount"],
         "plan": plan["name"],
-        "checkout_url": payment.checkout_url,
+        "message": "Ombi la malipo limetumwa. Angalia simu yako na thibitisha kwa PIN kwenye mobile money.",
     }
 
 
@@ -291,73 +341,98 @@ async def create_payment(data: PaymentIn, m: Merchant = Depends(current_merchant
 async def malipo_webhook(
     request: Request,
     x_malipopay_signature: Optional[str] = Header(None),
-    db: Session = Depends(db),
+    session: Session = Depends(db),
 ):
     raw_body = await request.body()
     if not verify_webhook_signature(raw_body, x_malipopay_signature):
         raise HTTPException(401, "Invalid MalipoPay webhook signature")
 
     try:
-        body = __import__("json").loads(raw_body)
+        body = json.loads(raw_body)
     except Exception:
         raise HTTPException(400, "Invalid JSON")
 
     event = str(body.get("event") or "").lower()
     status = str(body.get("status") or "").upper()
     reference = body.get("customerReference") or body.get("reference")
-    payment = db.query(Payment).filter(Payment.reference == reference).first()
+    payment = session.query(Payment).filter(Payment.reference == reference).first()
     if not payment:
         return {"ok": True, "ignored": True}
 
-    if event == "payment.confirmed" and status in {"SUCCESSFUL", "PAID"}:
-        paid_amount = body.get("amount")
-        if paid_amount is not None and float(paid_amount) < float(payment.amount):
+    if event == "payment.confirmed":
+        paid_amount = float(body.get("amount") or 0)
+        payment.external_reference = body.get("reference") or body.get("transactionId")
+        if paid_amount < float(payment.amount) or status == "PARTIAL":
             payment.status = "PARTIAL"
-            db.commit()
+            session.commit()
             return {"ok": True, "status": "partial"}
+
         if payment.status != "PAID":
             payment.status = "PAID"
             payment.paid_at = datetime.utcnow()
-            payment.external_reference = body.get("transactionId")
-            merchant = db.get(Merchant, payment.merchant_id)
+            payment.external_reference = body.get("transactionId") or body.get("reference")
+            merchant = session.get(Merchant, payment.merchant_id)
             if merchant:
                 activate_subscription(payment, merchant, datetime.utcnow())
-            db.commit()
+            session.commit()
 
-    elif event == "payment.failed" or status in {"FAILED", "REJECTED", "CANCELLED", "CUSTOMER_REJECTED"}:
+    elif event == "payment.failed":
         payment.status = status or "FAILED"
-        db.commit()
+        session.commit()
 
     elif event == "payment.refunded":
         payment.status = "REFUNDED"
-        db.commit()
+        session.commit()
 
     return {"ok": True}
 
 
 @app.get("/payments/{reference}")
-def payment_status(reference: str, m: Merchant = Depends(current_merchant), db: Session = Depends(db)):
-    p = db.query(Payment).filter(Payment.reference == reference, Payment.merchant_id == m.user_id).first()
-    if not p:
+def payment_status(
+    reference: str,
+    merchant: Merchant = Depends(current_merchant),
+    session: Session = Depends(db),
+):
+    payment = (
+        session.query(Payment)
+        .filter(Payment.reference == reference, Payment.merchant_id == merchant.user_id)
+        .first()
+    )
+    if not payment:
         raise HTTPException(404, "Malipo hayapo")
     return {
-        "reference": p.reference,
-        "status": p.status,
-        "plan": p.plan_code,
-        "amount": p.amount,
-        "checkout_url": p.checkout_url,
+        "reference": payment.reference,
+        "status": payment.status,
+        "plan": payment.plan_code,
+        "amount": payment.amount,
+        "external_reference": payment.external_reference,
     }
 
 
 @app.post("/chat")
-def chat(data: ChatIn, m: Merchant = Depends(current_merchant), db: Session = Depends(db)):
-    reply = generate_ai_sales_response(m, data.message, data.platform)
+def chat(
+    data: ChatIn,
+    merchant: Merchant = Depends(current_merchant),
+    session: Session = Depends(db),
+):
+    reply = generate_ai_sales_response(merchant, data.message, data.platform)
     if reply == "SERVICE_INACTIVE":
-        return {"status": "blocked", "message": "Huduma haipo active. Tafadhali lipia au renew kifurushi."}
-    if m.message_limit is not None:
-        m.messages_used += 1
-        db.commit()
-    return {"status": "success", "ai_reply": reply, "messages_used": m.messages_used, "message_limit": m.message_limit}
+        if merchant.expiry_date and datetime.utcnow() >= merchant.expiry_date:
+            merchant.subscription_status = "Expired"
+            session.commit()
+        return {
+            "status": "blocked",
+            "message": "Huduma haipo active. Tafadhali lipia au renew kifurushi.",
+        }
+    if merchant.message_limit is not None:
+        merchant.messages_used += 1
+        session.commit()
+    return {
+        "status": "success",
+        "ai_reply": reply,
+        "messages_used": merchant.messages_used,
+        "message_limit": merchant.message_limit,
+    }
 
 
 @app.post("/webhook/message")
@@ -366,18 +441,18 @@ def incoming(
     platform: str,
     customer_message: str,
     x_webhook_secret: Optional[str] = Header(None),
-    db: Session = Depends(db),
+    session: Session = Depends(db),
 ):
     secret = os.getenv("WEBHOOK_SECRET", "")
     if secret and not hmac.compare_digest(x_webhook_secret or "", secret):
         raise HTTPException(401, "Invalid webhook secret")
-    m = db.get(Merchant, merchant_id)
-    if not m:
+    merchant = session.get(Merchant, merchant_id)
+    if not merchant:
         raise HTTPException(404, "Mfanyabiashara hajapatikana")
-    reply = generate_ai_sales_response(m, customer_message, platform)
+    reply = generate_ai_sales_response(merchant, customer_message, platform)
     if reply == "SERVICE_INACTIVE":
         return {"status": "blocked", "message": "Huduma haipo active"}
-    if m.message_limit is not None:
-        m.messages_used += 1
-        db.commit()
+    if merchant.message_limit is not None:
+        merchant.messages_used += 1
+        session.commit()
     return {"status": "success", "merchant_id": merchant_id, "ai_reply": reply}
