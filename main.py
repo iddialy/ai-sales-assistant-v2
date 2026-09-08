@@ -19,7 +19,7 @@ from models import Base, Merchant, MerchantPaymentInfo, Payment, Product, Sessio
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="AI Sales Assistant Tanzania", version="5.0.0")
+app = FastAPI(title="AI Sales Assistant Tanzania", version="5.1.0")
 
 cors_raw = os.getenv("CORS_ORIGINS", "https://iddialy.github.io")
 origins = [x.strip() for x in cors_raw.split(",") if x.strip()]
@@ -162,7 +162,7 @@ def root():
     return {
         "system_status": "Online",
         "service": "AI Sales Assistant Tanzania",
-        "version": "5.0.0",
+        "version": "5.1.0",
     }
 
 

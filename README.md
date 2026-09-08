@@ -1,4 +1,4 @@
-# AI Sales Assistant Tanzania v5
+# AI Sales Assistant Tanzania v5.1
 
 Version hii inarekebisha mambo matatu ya msingi:
 
@@ -35,3 +35,7 @@ Baada ya PostgreSQL kuunganishwa, app itatengeneza tables zenyewe wakati wa star
 ## Muhimu kuhusu MalipoPay sandbox
 
 Akaunti ambayo haija-approve go-live huwa na restriction ya **Test Recipients**. Namba unayotaka ku-charge inapaswa kuwa imeongezwa kwenye MalipoPay Settings → Test Recipients kabla ya test collection.
+
+
+### Compatibility
+`psycopg2-binary` is included temporarily as a compatibility driver so Render deployments that still reference `psycopg2` can start successfully. New PostgreSQL connections use `psycopg`.
