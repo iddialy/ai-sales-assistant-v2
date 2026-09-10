@@ -4,128 +4,198 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>SalesAI Tanzania</title>
+
 <script src="https://cdn.tailwindcss.com"></script>
+
 </head>
 
 <body class="bg-slate-100 min-h-screen text-slate-800">
 
+<!-- =========================
+     NAVIGATION
+========================== -->
+
 <nav class="bg-blue-950 text-white p-4 flex justify-between items-center gap-3">
+
   <b class="text-xl">
     SalesAI
-    <span class="text-xs bg-green-500 px-2 py-1 rounded">Tanzania</span>
+    <span class="text-xs bg-green-500 px-2 py-1 rounded">
+      Tanzania
+    </span>
   </b>
 
   <div id="navActions"></div>
+
 </nav>
 
-<main class="max-w-6xl mx-auto p-4 md:p-8" id="app"></main>
+
+<!-- =========================
+     MAIN APP
+========================== -->
+
+<main
+  class="max-w-6xl mx-auto p-4 md:p-8"
+  id="app">
+</main>
+
 
 <script>
 
-const API_URL="https://ai-sales-assistant-api-07y0.onrender.com";
+const API_URL =
+  "https://ai-sales-assistant-api-07y0.onrender.com";
 
-let token=localStorage.getItem('salesai_token');
-let me=null;
+
+let token =
+  localStorage.getItem("salesai_token");
+
+let me = null;
+
 
 /*
-  Chat history ya sasa.
-  Kila swali na jibu litahifadhiwa hapa.
+  Chat history
 */
-let chatHistory=[];
 
-const money=n=>
-  new Intl.NumberFormat('sw-TZ').format(n)+' TSH';
+let chatHistory = [];
 
 
-/* =========================
+/*
+  Money formatter
+*/
+
+const money = n =>
+  new Intl.NumberFormat("sw-TZ").format(n) +
+  " TSH";
+
+
+/* =========================================================
    API
-========================= */
+========================================================= */
 
-async function api(path,opt={}){
+async function api(path, opt = {}) {
 
-  opt.headers={
-    ...(opt.headers||{}),
-    'Content-Type':'application/json',
-    ...(token?{Authorization:'Bearer '+token}:{})
+  opt.headers = {
+
+    ...(opt.headers || {}),
+
+    "Content-Type":
+      "application/json",
+
+    ...(token
+      ? {
+          Authorization:
+            "Bearer " + token
+        }
+      : {})
   };
 
-  const r=await fetch(API_URL+path,opt);
 
-  let d={};
+  const r =
+    await fetch(
+      API_URL + path,
+      opt
+    );
 
-  try{
-    d=await r.json();
-  }catch(_){
-    d={
-      detail:'Server haikurudisha jibu sahihi'
+
+  let d = {};
+
+
+  try {
+
+    d = await r.json();
+
+  } catch (_) {
+
+    d = {
+      detail:
+        "Server haikurudisha jibu sahihi"
     };
+
   }
 
-  if(!r.ok){
+
+  if (!r.ok) {
 
     throw Error(
       d.detail ||
       d.message ||
-      'Kuna tatizo'
+      "Kuna tatizo"
     );
+
   }
+
 
   return d;
 }
 
 
-/* =========================
+/* =========================================================
    AUTH SCREEN
-========================= */
+========================================================= */
 
-function authScreen(){
+function authScreen() {
 
-  document.getElementById('navActions').innerHTML='';
+  document
+    .getElementById("navActions")
+    .innerHTML = "";
 
-  document.getElementById('app').innerHTML=`
 
-  <div class="max-w-md mx-auto bg-white p-6 rounded-2xl shadow">
+  document
+    .getElementById("app")
+    .innerHTML = `
 
-    <div class="flex gap-2 mb-6">
+    <div class="max-w-md mx-auto bg-white p-6 rounded-2xl shadow">
 
-      <button
-        id="loginTab"
-        class="flex-1 bg-blue-900 text-white p-2 rounded-xl">
-        Login
-      </button>
+      <div class="flex gap-2 mb-6">
 
-      <button
-        id="signupTab"
-        class="flex-1 border p-2 rounded-xl">
-        Sign Up
-      </button>
+        <button
+          id="loginTab"
+          class="flex-1 bg-blue-900 text-white p-2 rounded-xl">
+
+          Login
+
+        </button>
+
+
+        <button
+          id="signupTab"
+          class="flex-1 border p-2 rounded-xl">
+
+          Sign Up
+
+        </button>
+
+      </div>
+
+
+      <div id="authForm"></div>
 
     </div>
-
-    <div id="authForm"></div>
-
-  </div>
   `;
+
 
   showLogin();
 }
 
 
-/* =========================
+/* =========================================================
    LOGIN
-========================= */
+========================================================= */
 
-function showLogin(){
+function showLogin() {
 
-  document.getElementById('authForm').innerHTML=`
+  document
+    .getElementById("authForm")
+    .innerHTML = `
 
     <h1 class="text-2xl font-bold mb-2">
       Karibu tena
     </h1>
 
+
     <p class="text-sm text-slate-500 mb-4">
       Ingia kwenye akaunti ya biashara yako.
     </p>
+
 
     <input
       id="loginEmail"
@@ -134,6 +204,7 @@ function showLogin(){
       placeholder="Email"
       class="w-full border p-3 rounded-xl mb-3">
 
+
     <input
       id="loginPassword"
       type="password"
@@ -141,44 +212,61 @@ function showLogin(){
       placeholder="Password"
       class="w-full border p-3 rounded-xl mb-4">
 
+
     <button
       id="loginBtn"
       onclick="login()"
       class="w-full bg-blue-900 text-white p-3 rounded-xl font-bold">
+
       Login
+
     </button>
+
 
     <p
       id="authMsg"
       class="text-sm mt-3">
     </p>
+
   `;
 
-  document.getElementById('loginTab').onclick=showLogin;
-  document.getElementById('signupTab').onclick=showSignup;
+
+  document
+    .getElementById("loginTab")
+    .onclick = showLogin;
+
+
+  document
+    .getElementById("signupTab")
+    .onclick = showSignup;
 }
 
 
-/* =========================
+/* =========================================================
    SIGNUP
-========================= */
+========================================================= */
 
-function showSignup(){
+function showSignup() {
 
-  document.getElementById('authForm').innerHTML=`
+  document
+    .getElementById("authForm")
+    .innerHTML = `
 
     <h1 class="text-2xl font-bold mb-2">
       Fungua akaunti
     </h1>
 
+
     <p class="text-sm text-slate-500 mb-4">
       Anza kuuza 24/7 kwa AI.
     </p>
+
 
     <input
       id="signupBiz"
       placeholder="Jina la biashara"
       class="w-full border p-3 rounded-xl mb-3">
+
 
     <input
       id="signupEmail"
@@ -187,11 +275,13 @@ function showSignup(){
       placeholder="Email"
       class="w-full border p-3 rounded-xl mb-3">
 
+
     <input
       id="signupPhone"
       inputmode="tel"
       placeholder="07XXXXXXXX"
       class="w-full border p-3 rounded-xl mb-3">
+
 
     <input
       id="signupPassword"
@@ -200,193 +290,286 @@ function showSignup(){
       placeholder="Password (angalau herufi 8)"
       class="w-full border p-3 rounded-xl mb-4">
 
+
     <button
       id="signupBtn"
       onclick="signup()"
       class="w-full bg-green-600 text-white p-3 rounded-xl font-bold">
+
       Sign Up
+
     </button>
+
 
     <p
       id="authMsg"
       class="text-sm mt-3">
     </p>
+
   `;
 
-  document.getElementById('loginTab').onclick=showLogin;
-  document.getElementById('signupTab').onclick=showSignup;
+
+  document
+    .getElementById("loginTab")
+    .onclick = showLogin;
+
+
+  document
+    .getElementById("signupTab")
+    .onclick = showSignup;
 }
 
 
-/* =========================
+/* =========================================================
    LOGIN ACTION
-========================= */
+========================================================= */
 
-async function login(){
+async function login() {
 
-  const msg=document.getElementById('authMsg');
-  const btn=document.getElementById('loginBtn');
-
-  btn.disabled=true;
-  btn.textContent='Inaingia...';
-  msg.textContent='';
-
-  try{
-
-    const d=await api(
-      '/auth/login',
-      {
-        method:'POST',
-
-        body:JSON.stringify({
-
-          email:
-            document
-            .getElementById('loginEmail')
-            .value
-            .trim(),
-
-          password:
-            document
-            .getElementById('loginPassword')
-            .value
-
-        })
-      }
+  const msg =
+    document.getElementById(
+      "authMsg"
     );
 
-    token=d.token;
+  const btn =
+    document.getElementById(
+      "loginBtn"
+    );
+
+
+  btn.disabled = true;
+
+  btn.textContent =
+    "Inaingia...";
+
+  msg.textContent = "";
+
+
+  try {
+
+    const d =
+      await api(
+        "/auth/login",
+        {
+          method: "POST",
+
+          body:
+            JSON.stringify({
+
+              email:
+                document
+                .getElementById(
+                  "loginEmail"
+                )
+                .value
+                .trim(),
+
+              password:
+                document
+                .getElementById(
+                  "loginPassword"
+                )
+                .value
+
+            })
+        }
+      );
+
+
+    token = d.token;
+
 
     localStorage.setItem(
-      'salesai_token',
+      "salesai_token",
       token
     );
 
+
     await load();
 
-  }catch(e){
 
-    msg.textContent=e.message;
-    msg.className=
-      'text-sm mt-3 text-red-600';
+  } catch (e) {
 
-    btn.disabled=false;
-    btn.textContent='Login';
+    msg.textContent =
+      e.message;
+
+    msg.className =
+      "text-sm mt-3 text-red-600";
+
+
+    btn.disabled = false;
+
+    btn.textContent =
+      "Login";
   }
 }
 
 
-/* =========================
+/* =========================================================
    SIGNUP ACTION
-========================= */
+========================================================= */
 
-async function signup(){
+async function signup() {
 
-  const msg=document.getElementById('authMsg');
-  const btn=document.getElementById('signupBtn');
-
-  btn.disabled=true;
-  btn.textContent='Inafungua account...';
-  msg.textContent='';
-
-  try{
-
-    const d=await api(
-      '/auth/signup',
-      {
-        method:'POST',
-
-        body:JSON.stringify({
-
-          business_name:
-            document
-            .getElementById('signupBiz')
-            .value
-            .trim(),
-
-          email:
-            document
-            .getElementById('signupEmail')
-            .value
-            .trim(),
-
-          phone_number:
-            document
-            .getElementById('signupPhone')
-            .value
-            .trim(),
-
-          password:
-            document
-            .getElementById('signupPassword')
-            .value
-
-        })
-      }
+  const msg =
+    document.getElementById(
+      "authMsg"
     );
 
-    token=d.token;
+  const btn =
+    document.getElementById(
+      "signupBtn"
+    );
+
+
+  btn.disabled = true;
+
+  btn.textContent =
+    "Inafungua account...";
+
+  msg.textContent = "";
+
+
+  try {
+
+    const d =
+      await api(
+        "/auth/signup",
+        {
+          method: "POST",
+
+          body:
+            JSON.stringify({
+
+              business_name:
+                document
+                .getElementById(
+                  "signupBiz"
+                )
+                .value
+                .trim(),
+
+              email:
+                document
+                .getElementById(
+                  "signupEmail"
+                )
+                .value
+                .trim(),
+
+              phone_number:
+                document
+                .getElementById(
+                  "signupPhone"
+                )
+                .value
+                .trim(),
+
+              password:
+                document
+                .getElementById(
+                  "signupPassword"
+                )
+                .value
+
+            })
+        }
+      );
+
+
+    token = d.token;
+
 
     localStorage.setItem(
-      'salesai_token',
+      "salesai_token",
       token
     );
 
+
     await load();
 
-  }catch(e){
 
-    msg.textContent=e.message;
-    msg.className=
-      'text-sm mt-3 text-red-600';
+  } catch (e) {
 
-    btn.disabled=false;
-    btn.textContent='Sign Up';
+    msg.textContent =
+      e.message;
+
+    msg.className =
+      "text-sm mt-3 text-red-600";
+
+
+    btn.disabled = false;
+
+    btn.textContent =
+      "Sign Up";
   }
 }
 
 
-/* =========================
+/* =========================================================
    LOAD USER
-========================= */
+========================================================= */
 
-async function load(){
+async function load() {
 
-  try{
+  try {
 
-    me=await api('/auth/me');
+    me =
+      await api(
+        "/auth/me"
+      );
+
 
     dashboard();
 
-  }catch(e){
 
-    token=null;
+  } catch (e) {
+
+    token = null;
+
 
     localStorage.removeItem(
-      'salesai_token'
+      "salesai_token"
     );
+
 
     authScreen();
   }
 }
 
 
-/* =========================
+/* =========================================================
    DASHBOARD
-========================= */
+========================================================= */
 
-function dashboard(){
+function dashboard() {
 
-  document.getElementById('navActions').innerHTML=`
+  document
+    .getElementById(
+      "navActions"
+    )
+    .innerHTML = `
 
     <button
       onclick="logout()"
       class="bg-white/10 px-3 py-2 rounded-xl">
+
       Logout
+
     </button>
+
   `;
 
-  document.getElementById('app').innerHTML=`
+
+  document
+    .getElementById(
+      "app"
+    )
+    .innerHTML = `
+
+  <!-- =========================
+       HEADER
+  ========================== -->
 
   <div class="mb-6">
 
@@ -394,16 +577,21 @@ function dashboard(){
       Karibu, ${escapeHtml(me.business_name)}
     </h1>
 
-    <p class="text-slate-500">
-      AI Sales Assistant iko tayari kwa majaribio.
+    <p class="text-slate-500 mt-1">
+      Dhibiti biashara yako na AI Sales Assistant.
     </p>
 
   </div>
 
 
+  <!-- =========================
+       STATS
+  ========================== -->
+
   <div class="grid md:grid-cols-3 gap-4 mb-6">
 
-    <div class="bg-white p-5 rounded-xl shadow">
+
+    <div class="bg-white p-5 rounded-2xl shadow">
 
       <p class="text-sm text-slate-500">
         Account
@@ -416,7 +604,7 @@ function dashboard(){
     </div>
 
 
-    <div class="bg-white p-5 rounded-xl shadow">
+    <div class="bg-white p-5 rounded-2xl shadow">
 
       <p class="text-sm text-slate-500">
         Bidhaa
@@ -425,20 +613,22 @@ function dashboard(){
       <b
         id="productCount"
         class="text-xl">
+
         ...
+
       </b>
 
     </div>
 
 
-    <div class="bg-white p-5 rounded-xl shadow">
+    <div class="bg-white p-5 rounded-2xl shadow">
 
       <p class="text-sm text-slate-500">
         Messages
       </p>
 
       <b class="text-xl">
-        ${me.messages_used||0}
+        ${me.messages_used || 0}
       </b>
 
     </div>
@@ -447,30 +637,426 @@ function dashboard(){
 
 
   <!-- =========================
-       AI CHAT
+       BUSINESS PROFILE SUMMARY
   ========================== -->
 
-  <section class="bg-white p-6 rounded-2xl shadow mb-6">
+  <section
+    class="bg-white p-6 rounded-2xl shadow mb-6">
 
-    <h2 class="text-xl font-bold mb-2">
-      Jaribu AI Sales Assistant
+    <div class="flex justify-between items-start gap-3 mb-5">
+
+      <div>
+
+        <h2 class="text-xl font-bold">
+          🏪 Business Profile
+        </h2>
+
+        <p class="text-sm text-slate-500 mt-1">
+          Taarifa hizi zitasaidia AI kuelewa biashara yako vizuri.
+        </p>
+
+      </div>
+
+
+      <button
+        onclick="showProfileForm()"
+        class="bg-blue-900 text-white px-4 py-2 rounded-xl font-bold">
+
+        Hariri
+
+      </button>
+
+    </div>
+
+
+    <div class="grid md:grid-cols-2 gap-4">
+
+
+      <div class="border rounded-xl p-4">
+
+        <p class="text-xs text-slate-500">
+          Jina la biashara
+        </p>
+
+        <p class="font-semibold mt-1">
+          ${escapeHtml(
+            me.business_name || "Haijawekwa"
+          )}
+        </p>
+
+      </div>
+
+
+      <div class="border rounded-xl p-4">
+
+        <p class="text-xs text-slate-500">
+          Namba ya simu
+        </p>
+
+        <p class="font-semibold mt-1">
+          ${escapeHtml(
+            me.phone_number || "Haijawekwa"
+          )}
+        </p>
+
+      </div>
+
+
+      <div class="border rounded-xl p-4">
+
+        <p class="text-xs text-slate-500">
+          Location
+        </p>
+
+        <p class="font-semibold mt-1">
+          ${escapeHtml(
+            me.business_location ||
+            "Haijawekwa"
+          )}
+        </p>
+
+      </div>
+
+
+      <div class="border rounded-xl p-4">
+
+        <p class="text-xs text-slate-500">
+          Aina ya biashara
+        </p>
+
+        <p class="font-semibold mt-1">
+          ${escapeHtml(
+            me.business_type ||
+            "Haijawekwa"
+          )}
+        </p>
+
+      </div>
+
+
+      <div class="border rounded-xl p-4">
+
+        <p class="text-xs text-slate-500">
+          Saa za kazi
+        </p>
+
+        <p class="font-semibold mt-1">
+          ${escapeHtml(
+            me.business_hours ||
+            "Haijawekwa"
+          )}
+        </p>
+
+      </div>
+
+
+      <div class="border rounded-xl p-4">
+
+        <p class="text-xs text-slate-500">
+          Lipa Namba
+        </p>
+
+        <p class="font-semibold mt-1">
+          ${escapeHtml(
+            me.payment_info?.lipa_namba ||
+            "Haijawekwa"
+          )}
+        </p>
+
+      </div>
+
+
+    </div>
+
+
+    <div class="border rounded-xl p-4 mt-4">
+
+      <p class="text-xs text-slate-500">
+        Maelezo ya biashara
+      </p>
+
+      <p class="mt-1 whitespace-pre-wrap">
+        ${escapeHtml(
+          me.business_description ||
+          "Bado hujaweka maelezo ya biashara."
+        )}
+      </p>
+
+    </div>
+
+
+    <div class="grid md:grid-cols-2 gap-4 mt-4">
+
+
+      <div class="border rounded-xl p-4">
+
+        <p class="text-xs text-slate-500">
+          Namba ya simu ya malipo
+        </p>
+
+        <p class="font-semibold mt-1">
+          ${escapeHtml(
+            me.payment_info?.phone_payment ||
+            "Haijawekwa"
+          )}
+        </p>
+
+      </div>
+
+
+      <div class="border rounded-xl p-4">
+
+        <p class="text-xs text-slate-500">
+          Bank Account
+        </p>
+
+        <p class="font-semibold mt-1">
+          ${escapeHtml(
+            me.payment_info?.bank_account ||
+            "Haijawekwa"
+          )}
+        </p>
+
+      </div>
+
+
+    </div>
+
+  </section>
+
+
+  <!-- =========================
+       BUSINESS PROFILE FORM
+  ========================== -->
+
+  <section
+    id="profileFormSection"
+    class="hidden bg-white p-6 rounded-2xl shadow mb-6">
+
+    <h2 class="text-xl font-bold mb-1">
+      🏪 Hariri Business Profile
     </h2>
 
-    <p class="text-sm text-slate-500 mb-4">
-      Kwa sasa mfumo wa malipo umeondolewa.
-      Unaweza kujaribu AI bila kulipia.
+    <p class="text-sm text-slate-500 mb-5">
+      Jaza taarifa sahihi za biashara yako.
     </p>
 
 
-    <!-- CHAT HISTORY -->
+    <div class="grid md:grid-cols-2 gap-4">
+
+
+      <div>
+
+        <label class="text-sm font-semibold">
+          Jina la biashara
+        </label>
+
+        <input
+          id="profileBusinessName"
+          class="w-full border p-3 rounded-xl mt-1"
+          placeholder="Mfano: Idd Fashion">
+
+      </div>
+
+
+      <div>
+
+        <label class="text-sm font-semibold">
+          Namba ya simu
+        </label>
+
+        <input
+          id="profilePhone"
+          inputmode="tel"
+          class="w-full border p-3 rounded-xl mt-1"
+          placeholder="0712345678">
+
+      </div>
+
+
+      <div>
+
+        <label class="text-sm font-semibold">
+          Location ya biashara
+        </label>
+
+        <input
+          id="profileLocation"
+          class="w-full border p-3 rounded-xl mt-1"
+          placeholder="Mfano: Kariakoo, Dar es Salaam">
+
+      </div>
+
+
+      <div>
+
+        <label class="text-sm font-semibold">
+          Aina ya biashara
+        </label>
+
+        <input
+          id="profileType"
+          class="w-full border p-3 rounded-xl mt-1"
+          placeholder="Mfano: Fashion / Electronics / Restaurant">
+
+      </div>
+
+
+      <div class="md:col-span-2">
+
+        <label class="text-sm font-semibold">
+          Saa za kazi
+        </label>
+
+        <input
+          id="profileHours"
+          class="w-full border p-3 rounded-xl mt-1"
+          placeholder="Mfano: Jumatatu - Jumamosi, 8:00 AM - 8:00 PM">
+
+      </div>
+
+
+      <div class="md:col-span-2">
+
+        <label class="text-sm font-semibold">
+          Maelezo ya bidhaa / biashara
+        </label>
+
+        <textarea
+          id="profileDescription"
+          rows="4"
+          class="w-full border p-3 rounded-xl mt-1 resize-none"
+          placeholder="Eleza biashara yako, bidhaa zako, huduma, delivery, n.k."></textarea>
+
+      </div>
+
+
+      <!-- PAYMENT INFORMATION -->
+
+      <div class="md:col-span-2">
+
+        <div class="border-t pt-5 mt-2">
+
+          <h3 class="font-bold text-lg mb-1">
+            💳 Taarifa za malipo ya biashara
+          </h3>
+
+          <p class="text-sm text-slate-500 mb-4">
+            Taarifa hizi ni za biashara yako na zitaonekana kwenye Dashboard yako.
+          </p>
+
+
+          <div class="grid md:grid-cols-3 gap-4">
+
+
+            <div>
+
+              <label class="text-sm font-semibold">
+                Lipa Namba
+              </label>
+
+              <input
+                id="profileLipaNamba"
+                class="w-full border p-3 rounded-xl mt-1"
+                placeholder="Mfano: 123456">
+
+            </div>
+
+
+            <div>
+
+              <label class="text-sm font-semibold">
+                Namba ya simu ya malipo
+              </label>
+
+              <input
+                id="profilePhonePayment"
+                inputmode="tel"
+                class="w-full border p-3 rounded-xl mt-1"
+                placeholder="0712345678">
+
+            </div>
+
+
+            <div>
+
+              <label class="text-sm font-semibold">
+                Bank Account
+              </label>
+
+              <input
+                id="profileBank"
+                class="w-full border p-3 rounded-xl mt-1"
+                placeholder="Jina / Account Number">
+
+            </div>
+
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+    </div>
+
+
+    <div
+      id="profileMsg"
+      class="text-sm mt-4">
+    </div>
+
+
+    <div class="flex gap-3 mt-5">
+
+
+      <button
+        onclick="saveProfile()"
+        id="saveProfileBtn"
+        class="flex-1 bg-green-600 text-white p-3 rounded-xl font-bold">
+
+        Hifadhi Profile
+
+      </button>
+
+
+      <button
+        onclick="hideProfileForm()"
+        class="flex-1 border p-3 rounded-xl font-bold">
+
+        Funga
+
+      </button>
+
+
+    </div>
+
+  </section>
+
+
+  <!-- =========================
+       AI CHAT
+  ========================== -->
+
+  <section
+    class="bg-white p-6 rounded-2xl shadow mb-6">
+
+    <h2 class="text-xl font-bold mb-2">
+      🤖 Jaribu AI Sales Assistant
+    </h2>
+
+
+    <p class="text-sm text-slate-500 mb-4">
+      Unaweza kujaribu AI bila kulipia kwa sasa.
+    </p>
+
 
     <div
       id="chatHistory"
       class="space-y-4 mb-5">
     </div>
 
-
-    <!-- TYPING AREA -->
 
     <textarea
       id="chatMessage"
@@ -505,18 +1091,27 @@ function dashboard(){
        PRODUCT CATALOG
   ========================== -->
 
-  <section class="bg-white p-6 rounded-2xl shadow">
+  <section
+    class="bg-white p-6 rounded-2xl shadow">
 
-    <h2 class="text-xl font-bold mb-4">
-      Product Catalog
+    <h2 class="text-xl font-bold mb-1">
+      📦 Product Catalog
     </h2>
 
-    <div class="grid md:grid-cols-3 gap-3">
+
+    <p class="text-sm text-slate-500 mb-4">
+      Weka bidhaa ambazo AI inaweza kutumia kujibu wateja.
+    </p>
+
+
+    <div class="grid md:grid-cols-2 gap-3">
+
 
       <input
         id="pname"
         placeholder="Jina la bidhaa"
         class="border p-3 rounded-xl">
+
 
       <input
         id="pprice"
@@ -524,20 +1119,31 @@ function dashboard(){
         placeholder="Bei TSH"
         class="border p-3 rounded-xl">
 
+
       <input
         id="pdesc"
-        placeholder="Maelezo"
+        placeholder="Maelezo ya bidhaa"
         class="border p-3 rounded-xl">
+
+
+      <input
+        id="pimage"
+        type="url"
+        placeholder="URL ya picha ya bidhaa (hiari)"
+        class="border p-3 rounded-xl">
+
 
       <button
         onclick="addProduct()"
-        class="md:col-span-3 bg-blue-900 text-white p-3 rounded-xl font-bold">
+        class="md:col-span-2 bg-blue-900 text-white p-3 rounded-xl font-bold">
 
         Hifadhi Bidhaa
 
       </button>
 
+
     </div>
+
 
     <div
       id="products"
@@ -545,120 +1151,400 @@ function dashboard(){
     </div>
 
   </section>
-  `;
 
+
+  `;
+  
 
   loadProducts();
 
+
   /*
-    Bonyeza Enter kutuma swali.
-    Shift + Enter = mstari mpya.
+    Enter sends message.
+    Shift + Enter = new line.
   */
 
-  const textarea=
-    document.getElementById('chatMessage');
+  const textarea =
+    document.getElementById(
+      "chatMessage"
+    );
+
 
   textarea.addEventListener(
-    'keydown',
-    function(e){
+    "keydown",
+    function(e) {
 
-      if(
-        e.key==='Enter' &&
+      if (
+        e.key === "Enter" &&
         !e.shiftKey
-      ){
+      ) {
 
         e.preventDefault();
 
         sendChat();
+
       }
 
     }
   );
+
 }
 
 
-/* =========================
+/* =========================================================
+   SHOW PROFILE FORM
+========================================================= */
+
+function showProfileForm() {
+
+  const section =
+    document.getElementById(
+      "profileFormSection"
+    );
+
+
+  if (!section) return;
+
+
+  document.getElementById(
+    "profileBusinessName"
+  ).value =
+    me.business_name || "";
+
+
+  document.getElementById(
+    "profilePhone"
+  ).value =
+    me.phone_number || "";
+
+
+  document.getElementById(
+    "profileLocation"
+  ).value =
+    me.business_location || "";
+
+
+  document.getElementById(
+    "profileType"
+  ).value =
+    me.business_type || "";
+
+
+  document.getElementById(
+    "profileHours"
+  ).value =
+    me.business_hours || "";
+
+
+  document.getElementById(
+    "profileDescription"
+  ).value =
+    me.business_description || "";
+
+
+  document.getElementById(
+    "profileLipaNamba"
+  ).value =
+    me.payment_info?.lipa_namba || "";
+
+
+  document.getElementById(
+    "profilePhonePayment"
+  ).value =
+    me.payment_info?.phone_payment || "";
+
+
+  document.getElementById(
+    "profileBank"
+  ).value =
+    me.payment_info?.bank_account || "";
+
+
+  document.getElementById(
+    "profileMsg"
+  ).textContent = "";
+
+
+  section.classList.remove(
+    "hidden"
+  );
+
+
+  section.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+
+}
+
+
+/* =========================================================
+   HIDE PROFILE FORM
+========================================================= */
+
+function hideProfileForm() {
+
+  const section =
+    document.getElementById(
+      "profileFormSection"
+    );
+
+
+  if (section) {
+
+    section.classList.add(
+      "hidden"
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   SAVE BUSINESS PROFILE
+========================================================= */
+
+async function saveProfile() {
+
+  const btn =
+    document.getElementById(
+      "saveProfileBtn"
+    );
+
+
+  const msg =
+    document.getElementById(
+      "profileMsg"
+    );
+
+
+  btn.disabled = true;
+
+  btn.textContent =
+    "Inahifadhi...";
+
+  msg.textContent = "";
+
+
+  try {
+
+    const d =
+      await api(
+        "/business-profile",
+        {
+          method: "PUT",
+
+          body:
+            JSON.stringify({
+
+              business_name:
+                document
+                .getElementById(
+                  "profileBusinessName"
+                )
+                .value
+                .trim(),
+
+              phone_number:
+                document
+                .getElementById(
+                  "profilePhone"
+                )
+                .value
+                .trim(),
+
+              business_location:
+                document
+                .getElementById(
+                  "profileLocation"
+                )
+                .value
+                .trim() || null,
+
+              business_type:
+                document
+                .getElementById(
+                  "profileType"
+                )
+                .value
+                .trim() || null,
+
+              business_hours:
+                document
+                .getElementById(
+                  "profileHours"
+                )
+                .value
+                .trim() || null,
+
+              business_description:
+                document
+                .getElementById(
+                  "profileDescription"
+                )
+                .value
+                .trim() || null,
+
+              lipa_namba:
+                document
+                .getElementById(
+                  "profileLipaNamba"
+                )
+                .value
+                .trim() || null,
+
+              phone_payment:
+                document
+                .getElementById(
+                  "profilePhonePayment"
+                )
+                .value
+                .trim() || null,
+
+              bank_account:
+                document
+                .getElementById(
+                  "profileBank"
+                )
+                .value
+                .trim() || null
+
+            })
+        }
+      );
+
+
+    me =
+      d.merchant;
+
+
+    msg.textContent =
+      "✅ Business Profile imehifadhiwa vizuri.";
+
+    msg.className =
+      "text-sm mt-4 text-green-600";
+
+
+    btn.disabled = false;
+
+    btn.textContent =
+      "Hifadhi Profile";
+
+
+    /*
+      Refresh dashboard
+      ili taarifa mpya zionekane.
+    */
+
+    setTimeout(
+      () => {
+
+        dashboard();
+
+      },
+      700
+    );
+
+
+  } catch (e) {
+
+    msg.textContent =
+      e.message ||
+      "Imeshindikana kuhifadhi.";
+
+    msg.className =
+      "text-sm mt-4 text-red-600";
+
+
+    btn.disabled = false;
+
+    btn.textContent =
+      "Hifadhi Profile";
+  }
+
+}
+
+
+/* =========================================================
    SEND CHAT
-========================= */
+========================================================= */
 
-async function sendChat(){
+async function sendChat() {
 
-  const input=
-    document.getElementById('chatMessage');
+  const input =
+    document.getElementById(
+      "chatMessage"
+    );
 
-  const btn=
-    document.getElementById('chatBtn');
 
-  const message=
+  const btn =
+    document.getElementById(
+      "chatBtn"
+    );
+
+
+  const message =
     input.value.trim();
 
 
-  if(!message){
+  if (!message) {
 
     input.focus();
 
     return;
+
   }
 
 
-  /*
-    Onamwonyesha mteja swali lake mara moja.
-  */
-
-  addUserMessage(message);
+  addUserMessage(
+    message
+  );
 
 
-  /*
-    Safisha sehemu ya kuandika
-    ili aweze kuuliza swali lingine.
-  */
-
-  input.value='';
+  input.value = "";
 
   input.focus();
 
 
-  btn.disabled=true;
-  btn.textContent='AI inajibu...';
+  btn.disabled = true;
+
+  btn.textContent =
+    "AI inajibu...";
 
 
-  /*
-    Tunatengeneza context ya mazungumzo.
-    Hii inasaidia AI kuelewa swali la
-    kufuatilia.
-  */
-
-  const previousConversation=
+  const previousConversation =
     chatHistory
     .slice(-10)
-    .map(item=>{
+    .map(item => {
 
-      if(item.role==='user'){
+      if (
+        item.role === "user"
+      ) {
 
-        return 'MTEJA: '+item.content;
+        return (
+          "MTEJA: " +
+          item.content
+        );
 
       }
 
-      return 'AI: '+item.content;
+      return (
+        "AI: " +
+        item.content
+      );
 
     })
-    .join('\n');
+    .join("\n");
 
 
-  /*
-    Tunamtumia backend mazungumzo
-    yaliyopita pamoja na swali jipya.
-
-    Backend yako bado inatumia field "message",
-    hivyo hatuhitaji kubadilisha API.
-  */
-
-  let aiMessage=message;
+  let aiMessage =
+    message;
 
 
-  if(previousConversation){
+  if (previousConversation) {
 
-    aiMessage=`
+    aiMessage = `
 
 HISTORIA YA MAZUNGUMZO:
 
@@ -676,91 +1562,100 @@ pale inapohitajika. Usirudie historia yote.
   }
 
 
-  try{
+  try {
 
-    const d=await api(
-      '/chat',
-      {
-        method:'POST',
+    const d =
+      await api(
+        "/chat",
+        {
+          method: "POST",
 
-        body:JSON.stringify({
+          body:
+            JSON.stringify({
 
-          message:aiMessage,
+              message:
+                aiMessage,
 
-          platform:'web'
+              platform:
+                "web"
 
-        })
-      }
+            })
+        }
+      );
+
+
+    const reply =
+      d.ai_reply ||
+      "Samahani, AI haikupata jibu kwa sasa.";
+
+
+    addAIMessage(
+      reply
     );
 
 
-    const reply=
-      d.ai_reply ||
-      'Samahani, AI haikupata jibu kwa sasa.';
-
-
-    /*
-      Hifadhi jibu kwenye history.
-    */
-
-    addAIMessage(reply);
-
-
-    me.messages_used=
+    me.messages_used =
       d.messages_used ||
       me.messages_used;
 
 
-  }catch(e){
+  } catch (e) {
 
     addAIMessage(
       e.message ||
-      'Samahani, kuna tatizo.'
+      "Samahani, kuna tatizo."
     );
 
   }
 
 
-  btn.disabled=false;
-  btn.textContent='Uliza AI';
+  btn.disabled = false;
+
+  btn.textContent =
+    "Uliza AI";
+
 
   input.focus();
 }
 
 
-/* =========================
+/* =========================================================
    ADD USER MESSAGE
-========================= */
+========================================================= */
 
-function addUserMessage(message){
-
-  /*
-    Hifadhi kwenye memory
-  */
+function addUserMessage(
+  message
+) {
 
   chatHistory.push({
 
-    role:'user',
+    role: "user",
 
-    content:message
+    content: message
 
   });
 
 
-  const container=
-    document.getElementById('chatHistory');
-
-  if(!container) return;
-
-
-  const div=
-    document.createElement('div');
-
-  div.className=
-    'flex justify-end';
+  const container =
+    document.getElementById(
+      "chatHistory"
+    );
 
 
-  div.innerHTML=`
+  if (!container) return;
+
+
+  const div =
+    document.createElement(
+      "div"
+    );
+
+
+  div.className =
+    "flex justify-end";
+
+
+  div.innerHTML = `
 
     <div class="max-w-[85%]">
 
@@ -769,7 +1664,9 @@ function addUserMessage(message){
       </div>
 
       <div class="bg-blue-900 text-white rounded-2xl rounded-tr-md p-4 whitespace-pre-wrap">
+
         ${escapeHtml(message)}
+
       </div>
 
     </div>
@@ -777,46 +1674,52 @@ function addUserMessage(message){
   `;
 
 
-  container.appendChild(div);
+  container.appendChild(
+    div
+  );
 
 
   scrollChatToBottom();
 }
 
 
-/* =========================
+/* =========================================================
    ADD AI MESSAGE
-========================= */
+========================================================= */
 
-function addAIMessage(message){
-
-  /*
-    Hifadhi kwenye memory
-  */
+function addAIMessage(
+  message
+) {
 
   chatHistory.push({
 
-    role:'assistant',
+    role: "assistant",
 
-    content:message
+    content: message
 
   });
 
 
-  const container=
-    document.getElementById('chatHistory');
-
-  if(!container) return;
-
-
-  const div=
-    document.createElement('div');
-
-  div.className=
-    'flex justify-start';
+  const container =
+    document.getElementById(
+      "chatHistory"
+    );
 
 
-  div.innerHTML=`
+  if (!container) return;
+
+
+  const div =
+    document.createElement(
+      "div"
+    );
+
+
+  div.className =
+    "flex justify-start";
+
+
+  div.innerHTML = `
 
     <div class="max-w-[90%]">
 
@@ -825,7 +1728,9 @@ function addAIMessage(message){
       </div>
 
       <div class="bg-slate-100 rounded-2xl rounded-tl-md p-4 whitespace-pre-wrap">
+
         ${escapeHtml(message)}
+
       </div>
 
     </div>
@@ -833,271 +1738,415 @@ function addAIMessage(message){
   `;
 
 
-  container.appendChild(div);
+  container.appendChild(
+    div
+  );
 
 
   scrollChatToBottom();
 }
 
 
-/* =========================
+/* =========================================================
    CHAT SCROLL
-========================= */
+========================================================= */
 
-function scrollChatToBottom(){
+function scrollChatToBottom() {
 
-  setTimeout(()=>{
+  setTimeout(
+    () => {
 
-    window.scrollTo({
+      window.scrollTo({
 
-      top:
-        document.body.scrollHeight,
+        top:
+          document.body.scrollHeight,
 
-      behavior:'smooth'
+        behavior:
+          "smooth"
 
-    });
+      });
 
-  },100);
+    },
+    100
+  );
 }
 
 
-/* =========================
+/* =========================================================
    CLEAR CHAT
-========================= */
+========================================================= */
 
-function clearChat(){
+function clearChat() {
 
-  if(chatHistory.length===0){
+  if (
+    chatHistory.length === 0
+  ) {
 
     return;
+
   }
 
 
-  const confirmed=
+  const confirmed =
     confirm(
-      'Una uhakika unataka kufuta mazungumzo haya?'
+      "Una uhakika unataka kufuta mazungumzo haya?"
     );
 
 
-  if(!confirmed){
+  if (!confirmed) {
 
     return;
+
   }
 
 
-  chatHistory=[];
+  chatHistory = [];
 
 
-  const container=
-    document.getElementById('chatHistory');
+  const container =
+    document.getElementById(
+      "chatHistory"
+    );
 
-  if(container){
 
-    container.innerHTML='';
+  if (container) {
+
+    container.innerHTML = "";
+
   }
 
 
-  const input=
-    document.getElementById('chatMessage');
+  const input =
+    document.getElementById(
+      "chatMessage"
+    );
 
-  if(input){
 
-    input.value='';
+  if (input) {
+
+    input.value = "";
 
     input.focus();
+
   }
+
 }
 
 
-/* =========================
+/* =========================================================
    ADD PRODUCT
-========================= */
+========================================================= */
 
-async function addProduct(){
+async function addProduct() {
 
-  const name=
+  const name =
     document
-    .getElementById('pname')
+    .getElementById(
+      "pname"
+    )
     .value
     .trim();
 
-  const price=
+
+  const price =
     Number(
       document
-      .getElementById('pprice')
+      .getElementById(
+        "pprice"
+      )
       .value
     );
 
-  const desc=
+
+  const desc =
     document
-    .getElementById('pdesc')
+    .getElementById(
+      "pdesc"
+    )
     .value
     .trim();
 
 
-  if(!name){
+  const image =
+    document
+    .getElementById(
+      "pimage"
+    )
+    .value
+    .trim();
 
-    alert('Weka jina la bidhaa.');
+
+  if (!name) {
+
+    alert(
+      "Weka jina la bidhaa."
+    );
 
     return;
+
   }
 
 
-  if(!price || price<=0){
+  if (!price || price <= 0) {
 
-    alert('Weka bei sahihi.');
+    alert(
+      "Weka bei sahihi."
+    );
 
     return;
+
   }
 
 
-  try{
+  try {
 
     await api(
-      '/products',
+      "/products",
       {
-        method:'POST',
+        method: "POST",
 
-        body:JSON.stringify({
+        body:
+          JSON.stringify({
 
-          product_name:name,
+            product_name:
+              name,
 
-          price:price,
+            price:
+              price,
 
-          description:desc
+            description:
+              desc,
 
-        })
+            image_url:
+              image || null
+
+          })
       }
     );
 
 
-    document.getElementById('pname').value='';
-    document.getElementById('pprice').value='';
-    document.getElementById('pdesc').value='';
+    document.getElementById(
+      "pname"
+    ).value = "";
+
+
+    document.getElementById(
+      "pprice"
+    ).value = "";
+
+
+    document.getElementById(
+      "pdesc"
+    ).value = "";
+
+
+    document.getElementById(
+      "pimage"
+    ).value = "";
 
 
     loadProducts();
 
 
-  }catch(e){
+  } catch (e) {
 
-    alert(e.message);
+    alert(
+      e.message
+    );
 
   }
+
 }
 
 
-/* =========================
+/* =========================================================
    LOAD PRODUCTS
-========================= */
+========================================================= */
 
-async function loadProducts(){
+async function loadProducts() {
 
-  try{
+  try {
 
-    const ps=
-      await api('/products');
-
-
-    document.getElementById(
-      'productCount'
-    ).textContent=ps.length;
+    const ps =
+      await api(
+        "/products"
+      );
 
 
-    document.getElementById(
-      'products'
-    ).innerHTML=
+    const count =
+      document.getElementById(
+        "productCount"
+      );
 
+
+    if (count) {
+
+      count.textContent =
+        ps.length;
+
+    }
+
+
+    const container =
+      document.getElementById(
+        "products"
+      );
+
+
+    if (!container) return;
+
+
+    container.innerHTML =
       ps.length
 
       ?
 
-      ps.map(p=>`
+      ps.map(
+        p => `
 
-        <div class="border p-3 rounded-xl mt-2">
+        <div class="border rounded-2xl p-4 mt-3">
 
-          <b>
-            ${escapeHtml(p.product_name)}
-          </b>
+          ${
+            p.image_url
 
-          <span>
-            — ${money(p.price)}
-          </span>
+            ?
 
-          <div class="text-sm text-slate-500 mt-1">
-            ${escapeHtml(p.description)}
+            `
+            <img
+              src="${escapeHtml(p.image_url)}"
+              alt="${escapeHtml(p.product_name)}"
+              class="w-full h-48 object-cover rounded-xl mb-3"
+              loading="lazy"
+              onerror="this.style.display='none'">
+            `
+
+            :
+
+            ""
+          }
+
+
+          <div class="flex justify-between gap-3">
+
+            <div>
+
+              <b class="text-lg">
+                ${escapeHtml(
+                  p.product_name
+                )}
+              </b>
+
+
+              <div class="text-green-700 font-bold mt-1">
+                ${money(p.price)}
+              </div>
+
+            </div>
+
           </div>
+
+
+          <div class="text-sm text-slate-500 mt-2">
+            ${escapeHtml(
+              p.description
+            )}
+          </div>
+
 
         </div>
 
-      `).join('')
+      `
+      ).join("")
 
       :
 
       `
-      <p class="text-slate-500">
-        Bado hujaweka bidhaa.
-      </p>
+      <div class="text-center py-6">
+
+        <p class="text-slate-500">
+          Bado hujaweka bidhaa.
+        </p>
+
+        <p class="text-xs text-slate-400 mt-1">
+          Ongeza bidhaa hapo juu ili AI iweze kuzitumia.
+        </p>
+
+      </div>
       `;
 
 
-  }catch(_){
+  } catch (_) {
 
   }
+
 }
 
 
-/* =========================
+/* =========================================================
    SECURITY
-========================= */
+========================================================= */
 
-function escapeHtml(s){
+function escapeHtml(s) {
 
-  return String(s??'').replace(
+  return String(
+    s ?? ""
+  ).replace(
     /[&<>'"]/g,
 
-    c=>({
+    c => ({
 
-      '&':'&amp;',
-      '<':'&lt;',
-      '>':'&gt;',
-      "'":'&#39;',
-      '"':'&quot;'
+      "&":
+        "&amp;",
+
+      "<":
+        "&lt;",
+
+      ">":
+        "&gt;",
+
+      "'":
+        "&#39;",
+
+      '"':
+        "&quot;"
 
     }[c])
   );
+
 }
 
 
-/* =========================
+/* =========================================================
    LOGOUT
-========================= */
+========================================================= */
 
-function logout(){
+function logout() {
 
   localStorage.removeItem(
-    'salesai_token'
+    "salesai_token"
   );
 
-  token=null;
 
-  me=null;
+  token = null;
 
-  chatHistory=[];
+  me = null;
+
+  chatHistory = [];
+
 
   location.reload();
 }
 
 
-/* =========================
+/* =========================================================
    START APP
-========================= */
+========================================================= */
 
-if(token){
+if (token) {
 
   load();
 
-}else{
+} else {
 
   authScreen();
 
@@ -1106,4 +2155,4 @@ if(token){
 </script>
 
 </body>
-</html>
+</html>i
