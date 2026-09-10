@@ -9,22 +9,10 @@ if API_KEY:
     genai.configure(api_key=API_KEY)
 
 
-def verify_subscription(merchant: Merchant) -> bool:
-    if merchant.subscription_status != "Active" or not merchant.expiry_date:
-        return False
-    if datetime.utcnow() > merchant.expiry_date:
-        return False
-    if merchant.message_limit is not None and merchant.messages_used >= merchant.message_limit:
-        return False
-    return True
-
 
 def generate_ai_sales_response(merchant: Merchant, customer_message: str, platform: str) -> str:
     if not API_KEY:
         return "Samahani, AI bado haijaunganishwa kwenye server."
-    if not verify_subscription(merchant):
-        return "SERVICE_INACTIVE"
-
     products_text = "\n".join(
         [
             f"- {p.product_name}: TSH {p.price:,.0f}. Maelezo: {p.description}"

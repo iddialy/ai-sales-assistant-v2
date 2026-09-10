@@ -13,27 +13,10 @@
 </nav>
 <main class="max-w-6xl mx-auto p-4 md:p-8" id="app"></main>
 
-<div id="paymentModal" class="hidden fixed inset-0 bg-black/50 p-4 z-50 items-center justify-center">
-  <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
-    <div class="flex justify-between items-start gap-3">
-      <div><h2 class="text-xl font-bold">Lipa kifurushi</h2><p id="selectedPlan" class="text-sm text-slate-500 mt-1"></p></div>
-      <button onclick="closePayment()" class="text-slate-500 text-xl">×</button>
-    </div>
-    <label class="block text-sm font-semibold mt-5 mb-2">Namba ya simu ya mobile money</label>
-    <input id="paymentPhone" inputmode="tel" placeholder="0712345678" class="w-full border p-3 rounded-xl">
-    <p class="text-xs text-slate-500 mt-2">Usiandike PIN hapa. PIN itaingizwa kwenye simu yako baada ya ombi la malipo kufika.</p>
-    <button id="confirmPayBtn" onclick="confirmPayment()" class="w-full bg-blue-900 text-white p-3 rounded-xl font-bold mt-5">Tuma ombi la malipo</button>
-    <p id="paymentMsg" class="text-sm mt-3"></p>
-  </div>
-</div>
-
 <script>
 const API_URL="https://ai-sales-assistant-api-07y0.onrender.com";
 let token=localStorage.getItem('salesai_token');
 let me=null;
-let selectedPlanCode=null;
-let paymentPoll=null;
-const plans={starter:{name:'Starter',amount:35000,limit:'1,000'},business:{name:'Business',amount:75000,limit:'Unlimited'}};
 const money=n=>new Intl.NumberFormat('sw-TZ').format(n)+' TSH';
 
 async function api(path,opt={}){
@@ -115,24 +98,19 @@ async function load(){
 
 function dashboard(){
   document.getElementById('navActions').innerHTML=`<button onclick="logout()" class="bg-white/10 px-3 py-2 rounded-xl">Logout</button>`;
-  const planName=me.plan_code==='none'?'Haijalipiwa':(plans[me.plan_code]?.name||me.plan_code);
-  const expiry=me.expiry_date?new Date(me.expiry_date).toLocaleDateString('sw-TZ'): '-';
   document.getElementById('app').innerHTML=`
-  <div class="mb-6"><h1 class="text-3xl font-bold">Karibu, ${escapeHtml(me.business_name)}</h1><p class="text-slate-500">Dhibiti AI Sales Assistant ya biashara yako.</p></div>
-  <div class="grid md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Kifurushi</p><b class="text-xl">${planName}</b></div>
-    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Matumizi</p><b class="text-xl">${me.message_limit===null?'Unlimited':me.messages_used+' / '+me.message_limit}</b></div>
-    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Status</p><b class="text-xl ${me.subscription_status==='Active'?'text-green-600':'text-red-600'}">${me.subscription_status}</b></div>
-    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Inaisha</p><b class="text-xl">${expiry}</b></div>
+  <div class="mb-6"><h1 class="text-3xl font-bold">Karibu, ${escapeHtml(me.business_name)}</h1><p class="text-slate-500">AI Sales Assistant iko tayari kwa majaribio.</p></div>
+  <div class="grid md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Account</p><b class="text-xl text-green-600">Active</b></div>
+    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Bidhaa</p><b id="productCount" class="text-xl">...</b></div>
+    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Messages</p><b class="text-xl">${me.messages_used||0}</b></div>
   </div>
   <section class="bg-white p-6 rounded-2xl shadow mb-6">
-    <h2 class="text-xl font-bold mb-2">Anzisha AI kwa malipo</h2>
-    <p class="text-sm text-slate-500 mb-4">Chagua kifurushi, weka namba ya mobile money, kisha thibitisha PIN kwenye simu yako.</p>
-    <div class="grid md:grid-cols-2 gap-4">
-      <div class="border-2 rounded-xl p-5"><h3 class="text-xl font-bold">Starter</h3><p class="text-3xl font-black my-2">35,000 TSH</p><p class="mb-4">Hadi <b>1,000</b> messages kwa mwezi.</p><button onclick="openPayment('starter')" class="w-full bg-blue-900 text-white p-3 rounded-xl font-bold">Lipa Starter</button></div>
-      <div class="border-2 border-blue-700 rounded-xl p-5"><h3 class="text-xl font-bold">Business</h3><p class="text-3xl font-black my-2">75,000 TSH</p><p class="mb-4"><b>Unlimited</b> messages kwa mwezi.</p><button onclick="openPayment('business')" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold">Lipa Business</button></div>
-    </div>
-    <p id="payMsg" class="mt-4 text-sm"></p>
+    <h2 class="text-xl font-bold mb-2">Jaribu AI Sales Assistant</h2>
+    <p class="text-sm text-slate-500 mb-4">Kwa sasa mfumo wa malipo umeondolewa. Unaweza kujaribu AI bila kulipia.</p>
+    <textarea id="chatMessage" rows="3" placeholder="Mfano: Bei ya bidhaa hii ni kiasi gani?" class="w-full border p-3 rounded-xl mb-3"></textarea>
+    <button onclick="sendChat()" id="chatBtn" class="w-full bg-blue-900 text-white p-3 rounded-xl font-bold">Uliza AI</button>
+    <div id="chatReply" class="mt-4 whitespace-pre-wrap"></div>
   </section>
   <section class="bg-white p-6 rounded-2xl shadow">
     <h2 class="text-xl font-bold mb-4">Product Catalog</h2>
@@ -142,62 +120,26 @@ function dashboard(){
   loadProducts();
 }
 
-function openPayment(code){
-  selectedPlanCode=code;
-  document.getElementById('selectedPlan').textContent=`${plans[code].name} — ${money(plans[code].amount)}`;
-  document.getElementById('paymentPhone').value=me.phone_number||'';
-  document.getElementById('paymentMsg').textContent='';
-  document.getElementById('paymentModal').classList.remove('hidden');
-  document.getElementById('paymentModal').classList.add('flex');
-}
-function closePayment(){
-  document.getElementById('paymentModal').classList.add('hidden');
-  document.getElementById('paymentModal').classList.remove('flex');
-  if(paymentPoll){clearInterval(paymentPoll);paymentPoll=null;}
-}
-
-async function confirmPayment(){
-  const btn=document.getElementById('confirmPayBtn');
-  const msg=document.getElementById('paymentMsg');
-  const phone=document.getElementById('paymentPhone').value.trim();
-  btn.disabled=true; btn.textContent='Inatuma...'; msg.textContent='';
+async function sendChat(){
+  const input=document.getElementById('chatMessage');
+  const btn=document.getElementById('chatBtn');
+  const reply=document.getElementById('chatReply');
+  const message=input.value.trim();
+  if(!message){reply.textContent='Andika swali kwanza.';return;}
+  btn.disabled=true; btn.textContent='AI inajibu...'; reply.textContent='';
   try{
-    const d=await api('/payments/create',{method:'POST',body:JSON.stringify({plan_code:selectedPlanCode,phone})});
-    msg.textContent='Ombi limetumwa. Angalia simu yako na ingiza PIN kwenye mobile money. Usiiandike hapa.';
-    msg.className='text-sm mt-3 text-green-700';
-    btn.textContent='Subiri uthibitisho...';
-    pollPayment(d.reference);
-  }catch(e){msg.textContent=e.message;msg.className='text-sm mt-3 text-red-600';btn.disabled=false;btn.textContent='Tuma ombi la malipo';}
-}
-
-function pollPayment(reference){
-  if(paymentPoll)clearInterval(paymentPoll);
-  let tries=0;
-  paymentPoll=setInterval(async()=>{
-    tries++;
-    try{
-      const p=await api('/payments/'+encodeURIComponent(reference));
-      if(['PAID','SUCCESSFUL'].includes(p.status)){
-        clearInterval(paymentPoll); paymentPoll=null;
-        document.getElementById('paymentMsg').textContent='Malipo yamepokelewa. AI imewashwa.';
-        document.getElementById('paymentMsg').className='text-sm mt-3 text-green-700';
-        setTimeout(async()=>{closePayment();await load();},1200);
-      }else if(['FAILED','REJECTED','CANCELLED','CUSTOMER_REJECTED','REFUNDED'].includes(p.status)){
-        clearInterval(paymentPoll); paymentPoll=null;
-        document.getElementById('paymentMsg').textContent='Malipo hayajakamilika: '+p.status;
-        document.getElementById('paymentMsg').className='text-sm mt-3 text-red-600';
-        const b=document.getElementById('confirmPayBtn');b.disabled=false;b.textContent='Jaribu tena';
-      }
-    }catch(_){ }
-    if(tries>=30){clearInterval(paymentPoll);paymentPoll=null;document.getElementById('paymentMsg').textContent='Bado tunasubiri uthibitisho. Kama umeingiza PIN, subiri kidogo kisha refresh.';document.getElementById('confirmPayBtn').disabled=false;document.getElementById('confirmPayBtn').textContent='Tuma ombi tena';}
-  },10000);
+    const d=await api('/chat',{method:'POST',body:JSON.stringify({message,platform:'web'})});
+    reply.innerHTML='<div class="bg-slate-100 rounded-xl p-4">'+escapeHtml(d.ai_reply)+'</div>';
+    me.messages_used=d.messages_used||me.messages_used;
+  }catch(e){reply.textContent=e.message; reply.className='mt-4 text-red-600';}
+  btn.disabled=false; btn.textContent='Uliza AI';
 }
 
 async function addProduct(){
   try{await api('/products',{method:'POST',body:JSON.stringify({product_name:document.getElementById('pname').value,price:Number(document.getElementById('pprice').value),description:document.getElementById('pdesc').value})});document.getElementById('pname').value='';document.getElementById('pprice').value='';document.getElementById('pdesc').value='';loadProducts();}catch(e){alert(e.message)}
 }
 async function loadProducts(){
-  try{const ps=await api('/products');document.getElementById('products').innerHTML=ps.length?ps.map(p=>`<div class="border p-3 rounded-xl mt-2"><b>${escapeHtml(p.product_name)}</b> — ${money(p.price)}<div class="text-sm text-slate-500">${escapeHtml(p.description)}</div></div>`).join(''):'<p class="text-slate-500">Bado hujaweka bidhaa.</p>';}catch(_){ }
+  try{const ps=await api('/products');document.getElementById('productCount').textContent=ps.length;document.getElementById('products').innerHTML=ps.length?ps.map(p=>`<div class="border p-3 rounded-xl mt-2"><b>${escapeHtml(p.product_name)}</b> — ${money(p.price)}<div class="text-sm text-slate-500">${escapeHtml(p.description)}</div></div>`).join(''):'<p class="text-slate-500">Bado hujaweka bidhaa.</p>';}catch(_){ }
 }
 function escapeHtml(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function logout(){localStorage.removeItem('salesai_token');token=null;location.reload();}
