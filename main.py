@@ -7,11 +7,16 @@ from typing import Optional
 import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
 from pwdlib import PasswordHash
 from sqlalchemy.orm import Session
 
-from ai_engine import generate_ai_sales_response
+from ai_engine import (
+    generate_ai_sales_response,
+    generate_ai_sales_response_stream,
+)
+
 from models import (
     Base,
     Merchant,
@@ -22,22 +27,28 @@ from models import (
 )
 
 
-# -------------------------
-# Create database tables
-# -------------------------
+# =========================================================
+# CREATE DATABASE TABLES
+# =========================================================
 
-Base.metadata.create_all(bind=engine)
-
-
-app = FastAPI(
-    title="AI Sales Assistant Tanzania",
-    version="7.0.0"
+Base.metadata.create_all(
+    bind=engine
 )
 
 
-# -------------------------
+# =========================================================
+# APP
+# =========================================================
+
+app = FastAPI(
+    title="AI Sales Assistant Tanzania",
+    version="8.0.0"
+)
+
+
+# =========================================================
 # CORS
-# -------------------------
+# =========================================================
 
 cors_raw = os.getenv(
     "CORS_ORIGINS",
@@ -59,9 +70,9 @@ app.add_middleware(
 )
 
 
-# -------------------------
-# Security
-# -------------------------
+# =========================================================
+# SECURITY
+# =========================================================
 
 password_hash = PasswordHash.recommended()
 
@@ -78,25 +89,33 @@ JWT_ALG = "HS256"
 # =========================================================
 
 class SignupIn(BaseModel):
+
     business_name: str = Field(
         min_length=2,
         max_length=200
     )
+
     email: EmailStr
+
     phone_number: str
+
     password: str = Field(
         min_length=8,
         max_length=128
     )
+
     language_preference: str = "sw"
 
 
 class LoginIn(BaseModel):
+
     email: EmailStr
+
     password: str
 
 
 class BusinessProfileIn(BaseModel):
+
     business_name: str = Field(
         min_length=2,
         max_length=200
@@ -144,6 +163,7 @@ class BusinessProfileIn(BaseModel):
 
 
 class ProductIn(BaseModel):
+
     product_name: str = Field(
         min_length=1,
         max_length=200
@@ -162,6 +182,7 @@ class ProductIn(BaseModel):
 
 
 class ChatIn(BaseModel):
+
     message: str = Field(
         min_length=1
     )
@@ -174,12 +195,15 @@ class ChatIn(BaseModel):
 # =========================================================
 
 def db():
+
     session = SessionLocal()
 
     try:
+
         yield session
 
     finally:
+
         session.close()
 
 
@@ -187,24 +211,38 @@ def db():
 # AUTHENTICATION
 # =========================================================
 
-def token_for(merchant: Merchant) -> str:
+def token_for(
+    merchant: Merchant
+) -> str:
 
     return jwt.encode(
         {
             "sub": merchant.user_id,
-            "exp": datetime.utcnow() + timedelta(days=7),
+
+            "exp": (
+                datetime.utcnow()
+                + timedelta(days=7)
+            ),
         },
+
         JWT_SECRET,
+
         algorithm=JWT_ALG,
     )
 
 
 def current_merchant(
     authorization: Optional[str] = Header(None),
+
     session: Session = Depends(db),
 ) -> Merchant:
 
-    if not authorization or not authorization.startswith("Bearer "):
+    if (
+        not authorization
+        or not authorization.startswith(
+            "Bearer "
+        )
+    ):
 
         raise HTTPException(
             status_code=401,
@@ -220,18 +258,28 @@ def current_merchant(
 
         payload = jwt.decode(
             token,
+
             JWT_SECRET,
-            algorithms=[JWT_ALG]
+
+            algorithms=[
+                JWT_ALG
+            ]
         )
 
     except jwt.PyJWTError:
 
         raise HTTPException(
             status_code=401,
-            detail="Session ime-expire. Ingia tena."
+
+            detail=(
+                "Session ime-expire. "
+                "Ingia tena."
+            )
         )
 
-    merchant_id = payload.get("sub")
+    merchant_id = payload.get(
+        "sub"
+    )
 
     merchant = session.get(
         Merchant,
@@ -242,6 +290,7 @@ def current_merchant(
 
         raise HTTPException(
             status_code=401,
+
             detail=(
                 "Account haipo kwenye database. "
                 "Tafadhali fungua account tena."
@@ -255,16 +304,22 @@ def current_merchant(
 # HELPERS
 # =========================================================
 
-def normalize_phone(phone: str) -> str:
+def normalize_phone(
+    phone: str
+) -> str:
 
     digits = "".join(
-        c for c in phone
+        c
+        for c in phone
         if c.isdigit()
     )
 
     if digits.startswith("0"):
 
-        digits = "255" + digits[1:]
+        digits = (
+            "255"
+            + digits[1:]
+        )
 
     if (
         not digits.startswith("255")
@@ -273,6 +328,7 @@ def normalize_phone(phone: str) -> str:
 
         raise HTTPException(
             status_code=400,
+
             detail=(
                 "Tafadhali tumia namba ya Tanzania, "
                 "mfano 0712345678"
@@ -284,42 +340,46 @@ def normalize_phone(phone: str) -> str:
 
 def public_merchant(
     merchant: Merchant,
+
     session: Optional[Session] = None
 ):
 
-    payment_info = merchant.payment_info
+    payment_info = (
+        merchant.payment_info
+    )
 
     return {
-        "user_id": merchant.user_id,
 
-        "business_name": merchant.business_name,
+        "user_id":
+            merchant.user_id,
 
-        "email": merchant.email,
+        "business_name":
+            merchant.business_name,
 
-        "phone_number": merchant.phone_number,
+        "email":
+            merchant.email,
+
+        "phone_number":
+            merchant.phone_number,
 
         # -------------------------
         # Business Profile
         # -------------------------
 
-        "business_location": (
-            merchant.business_location
-        ),
+        "business_location":
+            merchant.business_location,
 
-        "business_type": (
-            merchant.business_type
-        ),
+        "business_type":
+            merchant.business_type,
 
-        "business_hours": (
-            merchant.business_hours
-        ),
+        "business_hours":
+            merchant.business_hours,
 
-        "business_description": (
-            merchant.business_description
-        ),
+        "business_description":
+            merchant.business_description,
 
         # -------------------------
-        # Merchant Payment Details
+        # Payment Details
         # -------------------------
 
         "payment_info": {
@@ -347,11 +407,11 @@ def public_merchant(
         # Subscription
         # -------------------------
 
-        "plan_code": merchant.plan_code,
+        "plan_code":
+            merchant.plan_code,
 
-        "subscription_status": (
-            merchant.subscription_status
-        ),
+        "subscription_status":
+            merchant.subscription_status,
 
         "expiry_date": (
             merchant.expiry_date.isoformat()
@@ -359,9 +419,11 @@ def public_merchant(
             else None
         ),
 
-        "message_limit": None,
+        "message_limit":
+            None,
 
-        "messages_used": merchant.messages_used,
+        "messages_used":
+            merchant.messages_used,
     }
 
 
@@ -373,11 +435,24 @@ def public_merchant(
 def root():
 
     return {
-        "system_status": "Online",
-        "service": "AI Sales Assistant Tanzania",
-        "version": "7.0.0",
-        "payments": "disabled",
-        "business_profile": "enabled",
+
+        "system_status":
+            "Online",
+
+        "service":
+            "AI Sales Assistant Tanzania",
+
+        "version":
+            "8.0.0",
+
+        "payments":
+            "disabled",
+
+        "business_profile":
+            "enabled",
+
+        "streaming":
+            "enabled",
     }
 
 
@@ -385,13 +460,20 @@ def root():
 def health():
 
     return {
-        "status": "ok",
+
+        "status":
+            "ok",
 
         "database": (
             "configured"
-            if os.getenv("DATABASE_URL")
+            if os.getenv(
+                "DATABASE_URL"
+            )
             else "sqlite-fallback"
         ),
+
+        "streaming":
+            "enabled",
     }
 
 
@@ -402,6 +484,7 @@ def health():
 @app.post("/auth/signup")
 def signup(
     data: SignupIn,
+
     session: Session = Depends(db)
 ):
 
@@ -421,6 +504,7 @@ def signup(
 
         raise HTTPException(
             status_code=409,
+
             detail=(
                 "Email tayari imesajiliwa. "
                 "Tumia Login."
@@ -430,8 +514,8 @@ def signup(
     merchant = Merchant(
 
         user_id=(
-            "m_" +
-            uuid.uuid4().hex[:16]
+            "m_"
+            + uuid.uuid4().hex[:16]
         ),
 
         business_name=(
@@ -444,8 +528,10 @@ def signup(
             data.phone_number
         ),
 
-        password_hash=password_hash.hash(
-            data.password
+        password_hash=(
+            password_hash.hash(
+                data.password
+            )
         ),
 
         language_preference=(
@@ -461,19 +547,26 @@ def signup(
         messages_used=0,
     )
 
-    session.add(merchant)
+    session.add(
+        merchant
+    )
 
     session.commit()
 
-    session.refresh(merchant)
+    session.refresh(
+        merchant
+    )
 
     return {
-        "token": token_for(merchant),
 
-        "merchant": public_merchant(
-            merchant,
-            session
-        ),
+        "token":
+            token_for(merchant),
+
+        "merchant":
+            public_merchant(
+                merchant,
+                session
+            ),
     }
 
 
@@ -484,6 +577,7 @@ def signup(
 @app.post("/auth/login")
 def login(
     data: LoginIn,
+
     session: Session = Depends(db)
 ):
 
@@ -503,6 +597,7 @@ def login(
 
         raise HTTPException(
             status_code=401,
+
             detail=(
                 "Account haipo. "
                 "Hakikisha email au fungua Sign Up."
@@ -511,9 +606,12 @@ def login(
 
     try:
 
-        valid = password_hash.verify(
-            data.password,
-            merchant.password_hash
+        valid = (
+            password_hash.verify(
+                data.password,
+
+                merchant.password_hash
+            )
         )
 
     except Exception:
@@ -524,16 +622,22 @@ def login(
 
         raise HTTPException(
             status_code=401,
-            detail="Password si sahihi."
+
+            detail=(
+                "Password si sahihi."
+            )
         )
 
     return {
-        "token": token_for(merchant),
 
-        "merchant": public_merchant(
-            merchant,
-            session
-        ),
+        "token":
+            token_for(merchant),
+
+        "merchant":
+            public_merchant(
+                merchant,
+                session
+            ),
     }
 
 
@@ -543,11 +647,16 @@ def login(
 
 @app.get("/auth/me")
 def me(
-    merchant: Merchant = Depends(current_merchant),
+    merchant: Merchant = Depends(
+        current_merchant
+    ),
+
     session: Session = Depends(db)
 ):
 
-    session.refresh(merchant)
+    session.refresh(
+        merchant
+    )
 
     return public_merchant(
         merchant,
@@ -561,11 +670,16 @@ def me(
 
 @app.get("/business-profile")
 def get_business_profile(
-    merchant: Merchant = Depends(current_merchant),
+    merchant: Merchant = Depends(
+        current_merchant
+    ),
+
     session: Session = Depends(db)
 ):
 
-    session.refresh(merchant)
+    session.refresh(
+        merchant
+    )
 
     return public_merchant(
         merchant,
@@ -576,7 +690,11 @@ def get_business_profile(
 @app.put("/business-profile")
 def update_business_profile(
     data: BusinessProfileIn,
-    merchant: Merchant = Depends(current_merchant),
+
+    merchant: Merchant = Depends(
+        current_merchant
+    ),
+
     session: Session = Depends(db),
 ):
 
@@ -588,8 +706,10 @@ def update_business_profile(
         data.business_name.strip()
     )
 
-    merchant.phone_number = normalize_phone(
-        data.phone_number
+    merchant.phone_number = (
+        normalize_phone(
+            data.phone_number
+        )
     )
 
     merchant.business_location = (
@@ -617,10 +737,12 @@ def update_business_profile(
     )
 
     # -------------------------
-    # Merchant payment details
+    # Payment information
     # -------------------------
 
-    payment_info = merchant.payment_info
+    payment_info = (
+        merchant.payment_info
+    )
 
     if not payment_info:
 
@@ -628,7 +750,9 @@ def update_business_profile(
             merchant_id=merchant.user_id
         )
 
-        session.add(payment_info)
+        session.add(
+            payment_info
+        )
 
     payment_info.lipa_namba = (
         data.lipa_namba.strip()
@@ -637,7 +761,9 @@ def update_business_profile(
     )
 
     payment_info.phone_payment = (
-        normalize_phone(data.phone_payment)
+        normalize_phone(
+            data.phone_payment
+        )
         if data.phone_payment
         else None
     )
@@ -650,19 +776,23 @@ def update_business_profile(
 
     session.commit()
 
-    session.refresh(merchant)
+    session.refresh(
+        merchant
+    )
 
     return {
-        "status": "success",
 
-        "message": (
-            "Business Profile imehifadhiwa."
-        ),
+        "status":
+            "success",
 
-        "merchant": public_merchant(
-            merchant,
-            session
-        ),
+        "message":
+            "Business Profile imehifadhiwa.",
+
+        "merchant":
+            public_merchant(
+                merchant,
+                session
+            ),
     }
 
 
@@ -673,24 +803,30 @@ def update_business_profile(
 @app.post("/products")
 def add_product(
     data: ProductIn,
-    merchant: Merchant = Depends(current_merchant),
+
+    merchant: Merchant = Depends(
+        current_merchant
+    ),
+
     session: Session = Depends(db),
 ):
 
     product = Product(
 
         product_id=(
-            "p_" +
-            uuid.uuid4().hex[:16]
+            "p_"
+            + uuid.uuid4().hex[:16]
         ),
 
-        merchant_id=merchant.user_id,
+        merchant_id=
+            merchant.user_id,
 
         product_name=(
             data.product_name.strip()
         ),
 
-        price=data.price,
+        price=
+            data.price,
 
         description=(
             data.description.strip()
@@ -703,36 +839,51 @@ def add_product(
         ),
     )
 
-    session.add(product)
+    session.add(
+        product
+    )
 
     session.commit()
 
-    session.refresh(product)
+    session.refresh(
+        product
+    )
 
     return {
-        "status": "success",
 
-        "product_id": product.product_id,
+        "status":
+            "success",
+
+        "product_id":
+            product.product_id,
     }
 
 
 @app.get("/products")
 def products(
-    merchant: Merchant = Depends(current_merchant)
+    merchant: Merchant = Depends(
+        current_merchant
+    )
 ):
 
     return [
 
         {
-            "product_id": p.product_id,
 
-            "product_name": p.product_name,
+            "product_id":
+                p.product_id,
 
-            "price": p.price,
+            "product_name":
+                p.product_name,
 
-            "description": p.description,
+            "price":
+                p.price,
 
-            "image_url": p.image_url,
+            "description":
+                p.description,
+
+            "image_url":
+                p.image_url,
         }
 
         for p in merchant.products
@@ -740,53 +891,132 @@ def products(
 
 
 # =========================================================
-# AI CHAT
+# AI CHAT - REAL STREAMING
 # =========================================================
 
 @app.post("/chat")
 def chat(
     data: ChatIn,
-    merchant: Merchant = Depends(current_merchant),
-    session: Session = Depends(db),
+
+    merchant: Merchant = Depends(
+        current_merchant
+    ),
 ):
 
-    # Payments are disabled.
-    # Every logged-in merchant can test AI.
+    """
+    AI response sasa inatumwa kwa browser
+    vipande kwa vipande.
 
-    reply = generate_ai_sales_response(
-        merchant,
-        data.message,
+    Browser haitasubiri response yote.
+    """
+
+    merchant_id = (
+        merchant.user_id
+    )
+
+    customer_message = (
+        data.message
+    )
+
+    platform = (
         data.platform
     )
 
-    if reply == "SERVICE_INACTIVE":
+    def stream_response():
 
-        return {
-            "status": "blocked",
+        full_response = []
 
-            "message": (
-                "AI haijaweza kuanza. "
-                "Hakikisha GEMINI_API_KEY "
-                "imewekwa kwenye Render."
-            ),
-        }
+        try:
 
-    merchant.messages_used += 1
+            for chunk in (
+                generate_ai_sales_response_stream(
+                    merchant,
+                    customer_message,
+                    platform
+                )
+            ):
 
-    session.commit()
+                if chunk:
 
-    return {
+                    full_response.append(
+                        chunk
+                    )
 
-        "status": "success",
+                    yield chunk
 
-        "ai_reply": reply,
+        except Exception as e:
 
-        "messages_used": (
-            merchant.messages_used
+            print(
+                "Streaming endpoint error:",
+                str(e)
+            )
+
+            yield (
+                "\n\nSamahani, AI imepata "
+                "tatizo kwa sasa."
+            )
+
+        finally:
+
+            # -----------------------------------------
+            # Update message counter using fresh DB
+            # session.
+            # -----------------------------------------
+
+            if full_response:
+
+                update_session = (
+                    SessionLocal()
+                )
+
+                try:
+
+                    db_merchant = (
+                        update_session.get(
+                            Merchant,
+                            merchant_id
+                        )
+                    )
+
+                    if db_merchant:
+
+                        db_merchant.messages_used += 1
+
+                        update_session.commit()
+
+                except Exception as e:
+
+                    update_session.rollback()
+
+                    print(
+                        "Message counter error:",
+                        str(e)
+                    )
+
+                finally:
+
+                    update_session.close()
+
+    return StreamingResponse(
+
+        stream_response(),
+
+        media_type=(
+            "text/plain; charset=utf-8"
         ),
 
-        "message_limit": None,
-    }
+        headers={
+
+            "Cache-Control":
+                "no-cache",
+
+            "X-Accel-Buffering":
+                "no",
+
+            "Connection":
+                "keep-alive",
+        },
+    )
 
 
 # =========================================================
@@ -796,9 +1026,14 @@ def chat(
 @app.post("/webhook/message")
 def incoming(
     merchant_id: str,
+
     platform: str,
+
     customer_message: str,
-    x_webhook_secret: Optional[str] = Header(None),
+
+    x_webhook_secret:
+        Optional[str] = Header(None),
+
     session: Session = Depends(db),
 ):
 
@@ -807,14 +1042,20 @@ def incoming(
         ""
     )
 
-    if secret and not hmac.compare_digest(
-        x_webhook_secret or "",
+    if (
         secret
+        and not hmac.compare_digest(
+            x_webhook_secret or "",
+            secret
+        )
     ):
 
         raise HTTPException(
             status_code=401,
-            detail="Invalid webhook secret"
+
+            detail=(
+                "Invalid webhook secret"
+            )
         )
 
     merchant = session.get(
@@ -826,22 +1067,26 @@ def incoming(
 
         raise HTTPException(
             status_code=404,
+
             detail=(
                 "Mfanyabiashara hajapatikana"
             )
         )
 
-    reply = generate_ai_sales_response(
-        merchant,
-        customer_message,
-        platform
+    reply = (
+        generate_ai_sales_response(
+            merchant,
+            customer_message,
+            platform
+        )
     )
 
     if reply == "SERVICE_INACTIVE":
 
         return {
 
-            "status": "blocked",
+            "status":
+                "blocked",
 
             "message": (
                 "AI haijaweza kuanza. "
@@ -856,9 +1101,12 @@ def incoming(
 
     return {
 
-        "status": "success",
+        "status":
+            "success",
 
-        "merchant_id": merchant_id,
+        "merchant_id":
+            merchant_id,
 
-        "ai_reply": reply,
+        "ai_reply":
+            reply,
     }
