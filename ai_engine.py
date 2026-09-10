@@ -1,18 +1,23 @@
 import os
-from datetime import datetime
 
 import google.generativeai as genai
 from models import Merchant
 
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
+
 if API_KEY:
     genai.configure(api_key=API_KEY)
 
 
+def generate_ai_sales_response(
+    merchant: Merchant,
+    customer_message: str,
+    platform: str
+) -> str:
 
-def generate_ai_sales_response(merchant: Merchant, customer_message: str, platform: str) -> str:
     if not API_KEY:
         return "Samahani, AI bado haijaunganishwa kwenye server."
+
     products_text = "\n".join(
         [
             f"- {p.product_name}: TSH {p.price:,.0f}. Maelezo: {p.description}"
@@ -20,41 +25,74 @@ def generate_ai_sales_response(merchant: Merchant, customer_message: str, platfo
         ]
     ) or "Hakuna bidhaa zilizowekwa bado."
 
-    payment_info = merchant.payment_info
-    payment_text = (
-        f"Lipa Namba: {payment_info.lipa_namba if payment_info else 'Haipo'}\n"
-        f"Akaunti ya Bank: {payment_info.bank_account if payment_info else 'Haipo'}\n"
-        f"Simu ya Malipo: {payment_info.phone_payment if payment_info else 'Haipo'}"
-    )
-
     if merchant.language_preference == "sw":
+
         instruction = f"""
-Wewe ni Msaidizi wa Mauzo wa duka la '{merchant.business_name}'. Unajibu wateja kwenye {platform} na unalenga kufunga mauzo.
+Wewe ni Msaidizi wa Mauzo wa duka la
+'{merchant.business_name}'.
+
+Unajibu wateja kwenye {platform} na unalenga
+kusaidia kufunga mauzo.
 
 ORODHA YA BIDHAA NA BEI:
 {products_text}
 
-MAELEZO YA MALIPO YA DUKA:
-{payment_text}
-
 SHERIA:
-- Tumia bei halisi za katalogi pekee; usizue taarifa.
-- Jibu kwa Kiswahili rahisi na kifupi isipokuwa mteja aombe lugha nyingine.
+- Tumia bei halisi za katalogi pekee.
+- Usizue bidhaa au bei ambazo hazipo.
+- Jibu kwa Kiswahili rahisi na kifupi.
+- Kama mteja anauliza kuhusu bidhaa, tumia taarifa
+  kutoka kwenye katalogi.
+- Kama bidhaa haipo kwenye katalogi, sema
+  kuwa taarifa hiyo haipo kwa sasa.
 - Ukipewa oda, omba jina, simu na eneo la delivery.
-- Kama taarifa haipo, mwambie mteja utaunganisha na mmiliki.
+- Usizue taarifa za malipo.
 """
+
     else:
+
         instruction = f"""
-You are the AI Sales Assistant for '{merchant.business_name}' on {platform}.
+You are the AI Sales Assistant for
+'{merchant.business_name}' on {platform}.
+
 PRODUCTS:
 {products_text}
-PAYMENT DETAILS:
-{payment_text}
-Always use exact catalog prices. Ask for customer name, phone and delivery location when ordering. Never invent missing information.
+
+RULES:
+- Always use exact catalog prices.
+- Never invent products, prices or missing information.
+- Keep answers short and helpful.
+- When a customer wants to order, ask for
+  customer name, phone number and delivery location.
 """
 
+
+    model_name = os.environ.get(
+        "GEMINI_MODEL",
+        "gemini-2.5-flash"
+    )
+
     model = genai.GenerativeModel(
-        model_name=os.environ.get("GEMINI_MODEL", "gemini-1.5-flash"),
+        model_name=model_name,
         system_instruction=instruction,
     )
-    return model.generate_content(customer_message).text
+
+    try:
+
+        response = model.generate_content(
+            customer_message
+        )
+
+        if not response or not response.text:
+            return "Samahani, AI haikupata jibu kwa sasa."
+
+        return response.text.strip()
+
+    except Exception as e:
+
+        print("Gemini error:", str(e))
+
+        return (
+            "Samahani, AI imepata tatizo kwa sasa. "
+            "Tafadhali jaribu tena."
+        )
