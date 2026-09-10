@@ -627,8 +627,12 @@ function dashboard() {
         Messages
       </p>
 
-      <b class="text-xl">
+      <b
+        id="messageCount"
+        class="text-xl">
+
         ${me.messages_used || 0}
+
       </b>
 
     </div>
@@ -1432,11 +1436,6 @@ async function saveProfile() {
       "Hifadhi Profile";
 
 
-    /*
-      Refresh dashboard
-      ili taarifa mpya zionekane.
-    */
-
     setTimeout(
       () => {
 
@@ -1467,7 +1466,7 @@ async function saveProfile() {
 
 
 /* =========================================================
-   SEND CHAT
+   SEND CHAT - REAL STREAMING
 ========================================================= */
 
 async function sendChat() {
@@ -1497,6 +1496,10 @@ async function sendChat() {
   }
 
 
+  /*
+    Show customer's message immediately.
+  */
+
   addUserMessage(
     message
   );
@@ -1510,8 +1513,12 @@ async function sendChat() {
   btn.disabled = true;
 
   btn.textContent =
-    "AI inajibu...";
+    "AI inaandika...";
 
+
+  /*
+    Prepare previous conversation.
+  */
 
   const previousConversation =
     chatHistory
@@ -1562,13 +1569,41 @@ pale inapohitajika. Usirudie historia yote.
   }
 
 
+  let aiBubble = null;
+
+  let fullReply = "";
+
+
   try {
 
-    const d =
-      await api(
-        "/chat",
+    /*
+      IMPORTANT:
+
+      Hatumii api() hapa kwa sababu api()
+      inasubiri JSON nzima.
+
+      Badala yake tunatumia fetch()
+      moja kwa moja ili kusoma stream.
+    */
+
+    const response =
+      await fetch(
+        API_URL + "/chat",
         {
           method: "POST",
+
+          headers: {
+
+            "Content-Type":
+              "application/json",
+
+            ...(token
+              ? {
+                  Authorization:
+                    "Bearer " + token
+                }
+              : {})
+          },
 
           body:
             JSON.stringify({
@@ -1584,27 +1619,282 @@ pale inapohitajika. Usirudie historia yote.
       );
 
 
-    const reply =
-      d.ai_reply ||
-      "Samahani, AI haikupata jibu kwa sasa.";
+    /*
+      Check server error.
+    */
+
+    if (!response.ok) {
+
+      let errorMessage =
+        "Kuna tatizo kwenye server.";
+
+      try {
+
+        const errorData =
+          await response.json();
+
+        errorMessage =
+          errorData.detail ||
+          errorData.message ||
+          errorMessage;
+
+      } catch (_) {
+
+        try {
+
+          const text =
+            await response.text();
+
+          if (text) {
+
+            errorMessage =
+              text;
+
+          }
+
+        } catch (_) {}
+
+      }
+
+      throw new Error(
+        errorMessage
+      );
+
+    }
 
 
-    addAIMessage(
-      reply
-    );
+    /*
+      Make sure browser supports streaming.
+    */
+
+    if (!response.body) {
+
+      throw new Error(
+        "Browser yako haiwezi kusoma AI streaming."
+      );
+
+    }
 
 
-    me.messages_used =
-      d.messages_used ||
-      me.messages_used;
+    /*
+      Create empty AI bubble.
+    */
+
+    aiBubble =
+      createStreamingAIMessage();
+
+
+    /*
+      Get stream reader.
+    */
+
+    const reader =
+      response.body.getReader();
+
+
+    const decoder =
+      new TextDecoder(
+        "utf-8"
+      );
+
+
+    /*
+      Read chunks continuously.
+    */
+
+    while (true) {
+
+      const {
+        done,
+        value
+      } =
+        await reader.read();
+
+
+      if (done) {
+
+        break;
+
+      }
+
+
+      /*
+        Convert bytes into text.
+      */
+
+      const chunk =
+        decoder.decode(
+          value,
+          {
+            stream: true
+          }
+        );
+
+
+      if (!chunk) {
+
+        continue;
+
+      }
+
+
+      /*
+        Add incoming text immediately.
+      */
+
+      fullReply +=
+        chunk;
+
+
+      updateStreamingAIMessage(
+        aiBubble,
+        fullReply
+      );
+
+    }
+
+
+    /*
+      Flush remaining decoder data.
+    */
+
+    const finalChunk =
+      decoder.decode();
+
+
+    if (finalChunk) {
+
+      fullReply +=
+        finalChunk;
+
+
+      updateStreamingAIMessage(
+        aiBubble,
+        fullReply
+      );
+
+    }
+
+
+    /*
+      Save complete response
+      into chat history only once.
+    */
+
+    if (fullReply.trim()) {
+
+      chatHistory.push({
+
+        role:
+          "assistant",
+
+        content:
+          fullReply
+
+      });
+
+    }
+
+
+    /*
+      Update message counter.
+
+      The backend updates it after
+      the stream finishes, so fetch
+      the latest account information.
+    */
+
+    try {
+
+      const latestMe =
+        await api(
+          "/auth/me"
+        );
+
+      me =
+        latestMe;
+
+
+      const messageCount =
+        document.getElementById(
+          "messageCount"
+        );
+
+
+      if (messageCount) {
+
+        messageCount.textContent =
+          me.messages_used || 0;
+
+      }
+
+    } catch (_) {
+
+      /*
+        Ignore refresh failure.
+        Chat response is already complete.
+      */
+
+    }
 
 
   } catch (e) {
 
-    addAIMessage(
-      e.message ||
-      "Samahani, kuna tatizo."
-    );
+    /*
+      If streaming already started,
+      show the error below existing text.
+    */
+
+    if (aiBubble) {
+
+      const errorText =
+        fullReply
+          ? (
+              fullReply +
+              "\n\n" +
+              (
+                e.message ||
+                "Samahani, kuna tatizo."
+              )
+            )
+          : (
+              e.message ||
+              "Samahani, kuna tatizo."
+            );
+
+
+      updateStreamingAIMessage(
+        aiBubble,
+        errorText
+      );
+
+
+      /*
+        Save what the user saw.
+      */
+
+      if (errorText.trim()) {
+
+        chatHistory.push({
+
+          role:
+            "assistant",
+
+          content:
+            errorText
+
+        });
+
+      }
+
+    } else {
+
+      addAIMessage(
+        e.message ||
+        "Samahani, kuna tatizo."
+      );
+
+    }
 
   }
 
@@ -1616,6 +1906,100 @@ pale inapohitajika. Usirudie historia yote.
 
 
   input.focus();
+
+}
+
+
+/* =========================================================
+   CREATE STREAMING AI MESSAGE
+========================================================= */
+
+function createStreamingAIMessage() {
+
+  const container =
+    document.getElementById(
+      "chatHistory"
+    );
+
+
+  if (!container) {
+
+    return null;
+
+  }
+
+
+  const div =
+    document.createElement(
+      "div"
+    );
+
+
+  div.className =
+    "flex justify-start";
+
+
+  div.innerHTML = `
+
+    <div class="max-w-[90%]">
+
+      <div class="text-xs text-slate-500 mb-1">
+        AI Sales Assistant
+      </div>
+
+      <div
+        class="bg-slate-100 rounded-2xl rounded-tl-md p-4 whitespace-pre-wrap break-words"
+        data-ai-stream="true">
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  container.appendChild(
+    div
+  );
+
+
+  scrollChatToBottom();
+
+
+  return div;
+}
+
+
+/* =========================================================
+   UPDATE STREAMING AI MESSAGE
+========================================================= */
+
+function updateStreamingAIMessage(
+  bubble,
+  message
+) {
+
+  if (!bubble) return;
+
+
+  const content =
+    bubble.querySelector(
+      '[data-ai-stream="true"]'
+    );
+
+
+  if (!content) return;
+
+
+  /*
+    textContent prevents HTML injection.
+  */
+
+  content.textContent =
+    message;
+
+
+  scrollChatToBottom();
 }
 
 
@@ -1629,9 +2013,11 @@ function addUserMessage(
 
   chatHistory.push({
 
-    role: "user",
+    role:
+      "user",
 
-    content: message
+    content:
+      message
 
   });
 
@@ -1663,7 +2049,7 @@ function addUserMessage(
         Wewe
       </div>
 
-      <div class="bg-blue-900 text-white rounded-2xl rounded-tr-md p-4 whitespace-pre-wrap">
+      <div class="bg-blue-900 text-white rounded-2xl rounded-tr-md p-4 whitespace-pre-wrap break-words">
 
         ${escapeHtml(message)}
 
@@ -1693,9 +2079,11 @@ function addAIMessage(
 
   chatHistory.push({
 
-    role: "assistant",
+    role:
+      "assistant",
 
-    content: message
+    content:
+      message
 
   });
 
@@ -1727,7 +2115,7 @@ function addAIMessage(
         AI Sales Assistant
       </div>
 
-      <div class="bg-slate-100 rounded-2xl rounded-tl-md p-4 whitespace-pre-wrap">
+      <div class="bg-slate-100 rounded-2xl rounded-tl-md p-4 whitespace-pre-wrap break-words">
 
         ${escapeHtml(message)}
 
@@ -1767,7 +2155,7 @@ function scrollChatToBottom() {
       });
 
     },
-    100
+    50
   );
 }
 
