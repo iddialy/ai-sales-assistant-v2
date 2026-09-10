@@ -6,144 +6,1104 @@
 <title>SalesAI Tanzania</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
+
 <body class="bg-slate-100 min-h-screen text-slate-800">
+
 <nav class="bg-blue-950 text-white p-4 flex justify-between items-center gap-3">
-  <b class="text-xl">SalesAI <span class="text-xs bg-green-500 px-2 py-1 rounded">Tanzania</span></b>
+  <b class="text-xl">
+    SalesAI
+    <span class="text-xs bg-green-500 px-2 py-1 rounded">Tanzania</span>
+  </b>
+
   <div id="navActions"></div>
 </nav>
+
 <main class="max-w-6xl mx-auto p-4 md:p-8" id="app"></main>
 
 <script>
+
 const API_URL="https://ai-sales-assistant-api-07y0.onrender.com";
+
 let token=localStorage.getItem('salesai_token');
 let me=null;
-const money=n=>new Intl.NumberFormat('sw-TZ').format(n)+' TSH';
+
+/*
+  Chat history ya sasa.
+  Kila swali na jibu litahifadhiwa hapa.
+*/
+let chatHistory=[];
+
+const money=n=>
+  new Intl.NumberFormat('sw-TZ').format(n)+' TSH';
+
+
+/* =========================
+   API
+========================= */
 
 async function api(path,opt={}){
-  opt.headers={...(opt.headers||{}),'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})};
+
+  opt.headers={
+    ...(opt.headers||{}),
+    'Content-Type':'application/json',
+    ...(token?{Authorization:'Bearer '+token}:{})
+  };
+
   const r=await fetch(API_URL+path,opt);
-  let d={}; try{d=await r.json()}catch(_){d={detail:'Server haikurudisha jibu sahihi'}}
-  if(!r.ok) throw Error(d.detail||d.message||'Kuna tatizo');
+
+  let d={};
+
+  try{
+    d=await r.json();
+  }catch(_){
+    d={
+      detail:'Server haikurudisha jibu sahihi'
+    };
+  }
+
+  if(!r.ok){
+
+    throw Error(
+      d.detail ||
+      d.message ||
+      'Kuna tatizo'
+    );
+  }
+
   return d;
 }
 
+
+/* =========================
+   AUTH SCREEN
+========================= */
+
 function authScreen(){
+
   document.getElementById('navActions').innerHTML='';
+
   document.getElementById('app').innerHTML=`
+
   <div class="max-w-md mx-auto bg-white p-6 rounded-2xl shadow">
+
     <div class="flex gap-2 mb-6">
-      <button id="loginTab" class="flex-1 bg-blue-900 text-white p-2 rounded-xl">Login</button>
-      <button id="signupTab" class="flex-1 border p-2 rounded-xl">Sign Up</button>
+
+      <button
+        id="loginTab"
+        class="flex-1 bg-blue-900 text-white p-2 rounded-xl">
+        Login
+      </button>
+
+      <button
+        id="signupTab"
+        class="flex-1 border p-2 rounded-xl">
+        Sign Up
+      </button>
+
     </div>
+
     <div id="authForm"></div>
-  </div>`;
+
+  </div>
+  `;
+
   showLogin();
 }
 
+
+/* =========================
+   LOGIN
+========================= */
+
 function showLogin(){
+
   document.getElementById('authForm').innerHTML=`
-    <h1 class="text-2xl font-bold mb-2">Karibu tena</h1>
-    <p class="text-sm text-slate-500 mb-4">Ingia kwenye akaunti ya biashara yako.</p>
-    <input id="loginEmail" type="email" autocomplete="email" placeholder="Email" class="w-full border p-3 rounded-xl mb-3">
-    <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" class="w-full border p-3 rounded-xl mb-4">
-    <button id="loginBtn" onclick="login()" class="w-full bg-blue-900 text-white p-3 rounded-xl font-bold">Login</button>
-    <p id="authMsg" class="text-sm mt-3"></p>`;
+
+    <h1 class="text-2xl font-bold mb-2">
+      Karibu tena
+    </h1>
+
+    <p class="text-sm text-slate-500 mb-4">
+      Ingia kwenye akaunti ya biashara yako.
+    </p>
+
+    <input
+      id="loginEmail"
+      type="email"
+      autocomplete="email"
+      placeholder="Email"
+      class="w-full border p-3 rounded-xl mb-3">
+
+    <input
+      id="loginPassword"
+      type="password"
+      autocomplete="current-password"
+      placeholder="Password"
+      class="w-full border p-3 rounded-xl mb-4">
+
+    <button
+      id="loginBtn"
+      onclick="login()"
+      class="w-full bg-blue-900 text-white p-3 rounded-xl font-bold">
+      Login
+    </button>
+
+    <p
+      id="authMsg"
+      class="text-sm mt-3">
+    </p>
+  `;
+
   document.getElementById('loginTab').onclick=showLogin;
   document.getElementById('signupTab').onclick=showSignup;
 }
+
+
+/* =========================
+   SIGNUP
+========================= */
 
 function showSignup(){
+
   document.getElementById('authForm').innerHTML=`
-    <h1 class="text-2xl font-bold mb-2">Fungua akaunti</h1>
-    <p class="text-sm text-slate-500 mb-4">Anza kuuza 24/7 kwa AI.</p>
-    <input id="signupBiz" placeholder="Jina la biashara" class="w-full border p-3 rounded-xl mb-3">
-    <input id="signupEmail" type="email" autocomplete="email" placeholder="Email" class="w-full border p-3 rounded-xl mb-3">
-    <input id="signupPhone" inputmode="tel" placeholder="07XXXXXXXX" class="w-full border p-3 rounded-xl mb-3">
-    <input id="signupPassword" type="password" autocomplete="new-password" placeholder="Password (angalau herufi 8)" class="w-full border p-3 rounded-xl mb-4">
-    <button id="signupBtn" onclick="signup()" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold">Sign Up</button>
-    <p id="authMsg" class="text-sm mt-3"></p>`;
+
+    <h1 class="text-2xl font-bold mb-2">
+      Fungua akaunti
+    </h1>
+
+    <p class="text-sm text-slate-500 mb-4">
+      Anza kuuza 24/7 kwa AI.
+    </p>
+
+    <input
+      id="signupBiz"
+      placeholder="Jina la biashara"
+      class="w-full border p-3 rounded-xl mb-3">
+
+    <input
+      id="signupEmail"
+      type="email"
+      autocomplete="email"
+      placeholder="Email"
+      class="w-full border p-3 rounded-xl mb-3">
+
+    <input
+      id="signupPhone"
+      inputmode="tel"
+      placeholder="07XXXXXXXX"
+      class="w-full border p-3 rounded-xl mb-3">
+
+    <input
+      id="signupPassword"
+      type="password"
+      autocomplete="new-password"
+      placeholder="Password (angalau herufi 8)"
+      class="w-full border p-3 rounded-xl mb-4">
+
+    <button
+      id="signupBtn"
+      onclick="signup()"
+      class="w-full bg-green-600 text-white p-3 rounded-xl font-bold">
+      Sign Up
+    </button>
+
+    <p
+      id="authMsg"
+      class="text-sm mt-3">
+    </p>
+  `;
+
   document.getElementById('loginTab').onclick=showLogin;
   document.getElementById('signupTab').onclick=showSignup;
 }
 
+
+/* =========================
+   LOGIN ACTION
+========================= */
+
 async function login(){
+
   const msg=document.getElementById('authMsg');
   const btn=document.getElementById('loginBtn');
-  btn.disabled=true; btn.textContent='Inaingia...'; msg.textContent='';
+
+  btn.disabled=true;
+  btn.textContent='Inaingia...';
+  msg.textContent='';
+
   try{
-    const d=await api('/auth/login',{method:'POST',body:JSON.stringify({email:document.getElementById('loginEmail').value.trim(),password:document.getElementById('loginPassword').value})});
-    token=d.token; localStorage.setItem('salesai_token',token); await load();
-  }catch(e){msg.textContent=e.message;msg.className='text-sm mt-3 text-red-600';btn.disabled=false;btn.textContent='Login';}
+
+    const d=await api(
+      '/auth/login',
+      {
+        method:'POST',
+
+        body:JSON.stringify({
+
+          email:
+            document
+            .getElementById('loginEmail')
+            .value
+            .trim(),
+
+          password:
+            document
+            .getElementById('loginPassword')
+            .value
+
+        })
+      }
+    );
+
+    token=d.token;
+
+    localStorage.setItem(
+      'salesai_token',
+      token
+    );
+
+    await load();
+
+  }catch(e){
+
+    msg.textContent=e.message;
+    msg.className=
+      'text-sm mt-3 text-red-600';
+
+    btn.disabled=false;
+    btn.textContent='Login';
+  }
 }
+
+
+/* =========================
+   SIGNUP ACTION
+========================= */
 
 async function signup(){
+
   const msg=document.getElementById('authMsg');
   const btn=document.getElementById('signupBtn');
-  btn.disabled=true; btn.textContent='Inafungua account...'; msg.textContent='';
+
+  btn.disabled=true;
+  btn.textContent='Inafungua account...';
+  msg.textContent='';
+
   try{
-    const d=await api('/auth/signup',{method:'POST',body:JSON.stringify({
-      business_name:document.getElementById('signupBiz').value.trim(),
-      email:document.getElementById('signupEmail').value.trim(),
-      phone_number:document.getElementById('signupPhone').value.trim(),
-      password:document.getElementById('signupPassword').value
-    })});
-    token=d.token; localStorage.setItem('salesai_token',token); await load();
-  }catch(e){msg.textContent=e.message;msg.className='text-sm mt-3 text-red-600';btn.disabled=false;btn.textContent='Sign Up';}
+
+    const d=await api(
+      '/auth/signup',
+      {
+        method:'POST',
+
+        body:JSON.stringify({
+
+          business_name:
+            document
+            .getElementById('signupBiz')
+            .value
+            .trim(),
+
+          email:
+            document
+            .getElementById('signupEmail')
+            .value
+            .trim(),
+
+          phone_number:
+            document
+            .getElementById('signupPhone')
+            .value
+            .trim(),
+
+          password:
+            document
+            .getElementById('signupPassword')
+            .value
+
+        })
+      }
+    );
+
+    token=d.token;
+
+    localStorage.setItem(
+      'salesai_token',
+      token
+    );
+
+    await load();
+
+  }catch(e){
+
+    msg.textContent=e.message;
+    msg.className=
+      'text-sm mt-3 text-red-600';
+
+    btn.disabled=false;
+    btn.textContent='Sign Up';
+  }
 }
+
+
+/* =========================
+   LOAD USER
+========================= */
 
 async function load(){
-  try{me=await api('/auth/me');dashboard();}
-  catch(e){token=null;localStorage.removeItem('salesai_token');authScreen();}
+
+  try{
+
+    me=await api('/auth/me');
+
+    dashboard();
+
+  }catch(e){
+
+    token=null;
+
+    localStorage.removeItem(
+      'salesai_token'
+    );
+
+    authScreen();
+  }
 }
+
+
+/* =========================
+   DASHBOARD
+========================= */
 
 function dashboard(){
-  document.getElementById('navActions').innerHTML=`<button onclick="logout()" class="bg-white/10 px-3 py-2 rounded-xl">Logout</button>`;
+
+  document.getElementById('navActions').innerHTML=`
+
+    <button
+      onclick="logout()"
+      class="bg-white/10 px-3 py-2 rounded-xl">
+      Logout
+    </button>
+  `;
+
   document.getElementById('app').innerHTML=`
-  <div class="mb-6"><h1 class="text-3xl font-bold">Karibu, ${escapeHtml(me.business_name)}</h1><p class="text-slate-500">AI Sales Assistant iko tayari kwa majaribio.</p></div>
-  <div class="grid md:grid-cols-3 gap-4 mb-6">
-    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Account</p><b class="text-xl text-green-600">Active</b></div>
-    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Bidhaa</p><b id="productCount" class="text-xl">...</b></div>
-    <div class="bg-white p-5 rounded-xl shadow"><p class="text-sm text-slate-500">Messages</p><b class="text-xl">${me.messages_used||0}</b></div>
+
+  <div class="mb-6">
+
+    <h1 class="text-3xl font-bold">
+      Karibu, ${escapeHtml(me.business_name)}
+    </h1>
+
+    <p class="text-slate-500">
+      AI Sales Assistant iko tayari kwa majaribio.
+    </p>
+
   </div>
+
+
+  <div class="grid md:grid-cols-3 gap-4 mb-6">
+
+    <div class="bg-white p-5 rounded-xl shadow">
+
+      <p class="text-sm text-slate-500">
+        Account
+      </p>
+
+      <b class="text-xl text-green-600">
+        Active
+      </b>
+
+    </div>
+
+
+    <div class="bg-white p-5 rounded-xl shadow">
+
+      <p class="text-sm text-slate-500">
+        Bidhaa
+      </p>
+
+      <b
+        id="productCount"
+        class="text-xl">
+        ...
+      </b>
+
+    </div>
+
+
+    <div class="bg-white p-5 rounded-xl shadow">
+
+      <p class="text-sm text-slate-500">
+        Messages
+      </p>
+
+      <b class="text-xl">
+        ${me.messages_used||0}
+      </b>
+
+    </div>
+
+  </div>
+
+
+  <!-- =========================
+       AI CHAT
+  ========================== -->
+
   <section class="bg-white p-6 rounded-2xl shadow mb-6">
-    <h2 class="text-xl font-bold mb-2">Jaribu AI Sales Assistant</h2>
-    <p class="text-sm text-slate-500 mb-4">Kwa sasa mfumo wa malipo umeondolewa. Unaweza kujaribu AI bila kulipia.</p>
-    <textarea id="chatMessage" rows="3" placeholder="Mfano: Bei ya bidhaa hii ni kiasi gani?" class="w-full border p-3 rounded-xl mb-3"></textarea>
-    <button onclick="sendChat()" id="chatBtn" class="w-full bg-blue-900 text-white p-3 rounded-xl font-bold">Uliza AI</button>
-    <div id="chatReply" class="mt-4 whitespace-pre-wrap"></div>
+
+    <h2 class="text-xl font-bold mb-2">
+      Jaribu AI Sales Assistant
+    </h2>
+
+    <p class="text-sm text-slate-500 mb-4">
+      Kwa sasa mfumo wa malipo umeondolewa.
+      Unaweza kujaribu AI bila kulipia.
+    </p>
+
+
+    <!-- CHAT HISTORY -->
+
+    <div
+      id="chatHistory"
+      class="space-y-4 mb-5">
+    </div>
+
+
+    <!-- TYPING AREA -->
+
+    <textarea
+      id="chatMessage"
+      rows="3"
+      placeholder="Andika swali lako hapa..."
+      class="w-full border p-3 rounded-xl mb-3 resize-none">
+    </textarea>
+
+
+    <button
+      onclick="sendChat()"
+      id="chatBtn"
+      class="w-full bg-blue-900 text-white p-3 rounded-xl font-bold">
+
+      Uliza AI
+
+    </button>
+
+
+    <button
+      onclick="clearChat()"
+      class="w-full border border-red-200 text-red-600 p-3 rounded-xl font-bold mt-2">
+
+      Futa Mazungumzo
+
+    </button>
+
   </section>
+
+
+  <!-- =========================
+       PRODUCT CATALOG
+  ========================== -->
+
   <section class="bg-white p-6 rounded-2xl shadow">
-    <h2 class="text-xl font-bold mb-4">Product Catalog</h2>
-    <div class="grid md:grid-cols-3 gap-3"><input id="pname" placeholder="Jina la bidhaa" class="border p-3 rounded-xl"><input id="pprice" type="number" placeholder="Bei TSH" class="border p-3 rounded-xl"><input id="pdesc" placeholder="Maelezo" class="border p-3 rounded-xl"><button onclick="addProduct()" class="md:col-span-3 bg-blue-900 text-white p-3 rounded-xl font-bold">Hifadhi Bidhaa</button></div>
-    <div id="products" class="mt-5"></div>
-  </section>`;
+
+    <h2 class="text-xl font-bold mb-4">
+      Product Catalog
+    </h2>
+
+    <div class="grid md:grid-cols-3 gap-3">
+
+      <input
+        id="pname"
+        placeholder="Jina la bidhaa"
+        class="border p-3 rounded-xl">
+
+      <input
+        id="pprice"
+        type="number"
+        placeholder="Bei TSH"
+        class="border p-3 rounded-xl">
+
+      <input
+        id="pdesc"
+        placeholder="Maelezo"
+        class="border p-3 rounded-xl">
+
+      <button
+        onclick="addProduct()"
+        class="md:col-span-3 bg-blue-900 text-white p-3 rounded-xl font-bold">
+
+        Hifadhi Bidhaa
+
+      </button>
+
+    </div>
+
+    <div
+      id="products"
+      class="mt-5">
+    </div>
+
+  </section>
+  `;
+
+
   loadProducts();
+
+  /*
+    Bonyeza Enter kutuma swali.
+    Shift + Enter = mstari mpya.
+  */
+
+  const textarea=
+    document.getElementById('chatMessage');
+
+  textarea.addEventListener(
+    'keydown',
+    function(e){
+
+      if(
+        e.key==='Enter' &&
+        !e.shiftKey
+      ){
+
+        e.preventDefault();
+
+        sendChat();
+      }
+
+    }
+  );
 }
+
+
+/* =========================
+   SEND CHAT
+========================= */
 
 async function sendChat(){
-  const input=document.getElementById('chatMessage');
-  const btn=document.getElementById('chatBtn');
-  const reply=document.getElementById('chatReply');
-  const message=input.value.trim();
-  if(!message){reply.textContent='Andika swali kwanza.';return;}
-  btn.disabled=true; btn.textContent='AI inajibu...'; reply.textContent='';
+
+  const input=
+    document.getElementById('chatMessage');
+
+  const btn=
+    document.getElementById('chatBtn');
+
+  const message=
+    input.value.trim();
+
+
+  if(!message){
+
+    input.focus();
+
+    return;
+  }
+
+
+  /*
+    Onamwonyesha mteja swali lake mara moja.
+  */
+
+  addUserMessage(message);
+
+
+  /*
+    Safisha sehemu ya kuandika
+    ili aweze kuuliza swali lingine.
+  */
+
+  input.value='';
+
+  input.focus();
+
+
+  btn.disabled=true;
+  btn.textContent='AI inajibu...';
+
+
+  /*
+    Tunatengeneza context ya mazungumzo.
+    Hii inasaidia AI kuelewa swali la
+    kufuatilia.
+  */
+
+  const previousConversation=
+    chatHistory
+    .slice(-10)
+    .map(item=>{
+
+      if(item.role==='user'){
+
+        return 'MTEJA: '+item.content;
+
+      }
+
+      return 'AI: '+item.content;
+
+    })
+    .join('\n');
+
+
+  /*
+    Tunamtumia backend mazungumzo
+    yaliyopita pamoja na swali jipya.
+
+    Backend yako bado inatumia field "message",
+    hivyo hatuhitaji kubadilisha API.
+  */
+
+  let aiMessage=message;
+
+
+  if(previousConversation){
+
+    aiMessage=`
+
+HISTORIA YA MAZUNGUMZO:
+
+${previousConversation}
+
+---
+
+SWALI JIPYA LA MTEJA:
+
+${message}
+
+Jibu swali jipya ukitumia historia hapo juu
+pale inapohitajika. Usirudie historia yote.
+`;
+  }
+
+
   try{
-    const d=await api('/chat',{method:'POST',body:JSON.stringify({message,platform:'web'})});
-    reply.innerHTML='<div class="bg-slate-100 rounded-xl p-4">'+escapeHtml(d.ai_reply)+'</div>';
-    me.messages_used=d.messages_used||me.messages_used;
-  }catch(e){reply.textContent=e.message; reply.className='mt-4 text-red-600';}
-  btn.disabled=false; btn.textContent='Uliza AI';
+
+    const d=await api(
+      '/chat',
+      {
+        method:'POST',
+
+        body:JSON.stringify({
+
+          message:aiMessage,
+
+          platform:'web'
+
+        })
+      }
+    );
+
+
+    const reply=
+      d.ai_reply ||
+      'Samahani, AI haikupata jibu kwa sasa.';
+
+
+    /*
+      Hifadhi jibu kwenye history.
+    */
+
+    addAIMessage(reply);
+
+
+    me.messages_used=
+      d.messages_used ||
+      me.messages_used;
+
+
+  }catch(e){
+
+    addAIMessage(
+      e.message ||
+      'Samahani, kuna tatizo.'
+    );
+
+  }
+
+
+  btn.disabled=false;
+  btn.textContent='Uliza AI';
+
+  input.focus();
 }
 
+
+/* =========================
+   ADD USER MESSAGE
+========================= */
+
+function addUserMessage(message){
+
+  /*
+    Hifadhi kwenye memory
+  */
+
+  chatHistory.push({
+
+    role:'user',
+
+    content:message
+
+  });
+
+
+  const container=
+    document.getElementById('chatHistory');
+
+  if(!container) return;
+
+
+  const div=
+    document.createElement('div');
+
+  div.className=
+    'flex justify-end';
+
+
+  div.innerHTML=`
+
+    <div class="max-w-[85%]">
+
+      <div class="text-xs text-slate-500 mb-1 text-right">
+        Wewe
+      </div>
+
+      <div class="bg-blue-900 text-white rounded-2xl rounded-tr-md p-4 whitespace-pre-wrap">
+        ${escapeHtml(message)}
+      </div>
+
+    </div>
+
+  `;
+
+
+  container.appendChild(div);
+
+
+  scrollChatToBottom();
+}
+
+
+/* =========================
+   ADD AI MESSAGE
+========================= */
+
+function addAIMessage(message){
+
+  /*
+    Hifadhi kwenye memory
+  */
+
+  chatHistory.push({
+
+    role:'assistant',
+
+    content:message
+
+  });
+
+
+  const container=
+    document.getElementById('chatHistory');
+
+  if(!container) return;
+
+
+  const div=
+    document.createElement('div');
+
+  div.className=
+    'flex justify-start';
+
+
+  div.innerHTML=`
+
+    <div class="max-w-[90%]">
+
+      <div class="text-xs text-slate-500 mb-1">
+        AI Sales Assistant
+      </div>
+
+      <div class="bg-slate-100 rounded-2xl rounded-tl-md p-4 whitespace-pre-wrap">
+        ${escapeHtml(message)}
+      </div>
+
+    </div>
+
+  `;
+
+
+  container.appendChild(div);
+
+
+  scrollChatToBottom();
+}
+
+
+/* =========================
+   CHAT SCROLL
+========================= */
+
+function scrollChatToBottom(){
+
+  setTimeout(()=>{
+
+    window.scrollTo({
+
+      top:
+        document.body.scrollHeight,
+
+      behavior:'smooth'
+
+    });
+
+  },100);
+}
+
+
+/* =========================
+   CLEAR CHAT
+========================= */
+
+function clearChat(){
+
+  if(chatHistory.length===0){
+
+    return;
+  }
+
+
+  const confirmed=
+    confirm(
+      'Una uhakika unataka kufuta mazungumzo haya?'
+    );
+
+
+  if(!confirmed){
+
+    return;
+  }
+
+
+  chatHistory=[];
+
+
+  const container=
+    document.getElementById('chatHistory');
+
+  if(container){
+
+    container.innerHTML='';
+  }
+
+
+  const input=
+    document.getElementById('chatMessage');
+
+  if(input){
+
+    input.value='';
+
+    input.focus();
+  }
+}
+
+
+/* =========================
+   ADD PRODUCT
+========================= */
+
 async function addProduct(){
-  try{await api('/products',{method:'POST',body:JSON.stringify({product_name:document.getElementById('pname').value,price:Number(document.getElementById('pprice').value),description:document.getElementById('pdesc').value})});document.getElementById('pname').value='';document.getElementById('pprice').value='';document.getElementById('pdesc').value='';loadProducts();}catch(e){alert(e.message)}
+
+  const name=
+    document
+    .getElementById('pname')
+    .value
+    .trim();
+
+  const price=
+    Number(
+      document
+      .getElementById('pprice')
+      .value
+    );
+
+  const desc=
+    document
+    .getElementById('pdesc')
+    .value
+    .trim();
+
+
+  if(!name){
+
+    alert('Weka jina la bidhaa.');
+
+    return;
+  }
+
+
+  if(!price || price<=0){
+
+    alert('Weka bei sahihi.');
+
+    return;
+  }
+
+
+  try{
+
+    await api(
+      '/products',
+      {
+        method:'POST',
+
+        body:JSON.stringify({
+
+          product_name:name,
+
+          price:price,
+
+          description:desc
+
+        })
+      }
+    );
+
+
+    document.getElementById('pname').value='';
+    document.getElementById('pprice').value='';
+    document.getElementById('pdesc').value='';
+
+
+    loadProducts();
+
+
+  }catch(e){
+
+    alert(e.message);
+
+  }
 }
+
+
+/* =========================
+   LOAD PRODUCTS
+========================= */
+
 async function loadProducts(){
-  try{const ps=await api('/products');document.getElementById('productCount').textContent=ps.length;document.getElementById('products').innerHTML=ps.length?ps.map(p=>`<div class="border p-3 rounded-xl mt-2"><b>${escapeHtml(p.product_name)}</b> — ${money(p.price)}<div class="text-sm text-slate-500">${escapeHtml(p.description)}</div></div>`).join(''):'<p class="text-slate-500">Bado hujaweka bidhaa.</p>';}catch(_){ }
+
+  try{
+
+    const ps=
+      await api('/products');
+
+
+    document.getElementById(
+      'productCount'
+    ).textContent=ps.length;
+
+
+    document.getElementById(
+      'products'
+    ).innerHTML=
+
+      ps.length
+
+      ?
+
+      ps.map(p=>`
+
+        <div class="border p-3 rounded-xl mt-2">
+
+          <b>
+            ${escapeHtml(p.product_name)}
+          </b>
+
+          <span>
+            — ${money(p.price)}
+          </span>
+
+          <div class="text-sm text-slate-500 mt-1">
+            ${escapeHtml(p.description)}
+          </div>
+
+        </div>
+
+      `).join('')
+
+      :
+
+      `
+      <p class="text-slate-500">
+        Bado hujaweka bidhaa.
+      </p>
+      `;
+
+
+  }catch(_){
+
+  }
 }
-function escapeHtml(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-function logout(){localStorage.removeItem('salesai_token');token=null;location.reload();}
-if(token)load();else authScreen();
+
+
+/* =========================
+   SECURITY
+========================= */
+
+function escapeHtml(s){
+
+  return String(s??'').replace(
+    /[&<>'"]/g,
+
+    c=>({
+
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      "'":'&#39;',
+      '"':'&quot;'
+
+    }[c])
+  );
+}
+
+
+/* =========================
+   LOGOUT
+========================= */
+
+function logout(){
+
+  localStorage.removeItem(
+    'salesai_token'
+  );
+
+  token=null;
+
+  me=null;
+
+  chatHistory=[];
+
+  location.reload();
+}
+
+
+/* =========================
+   START APP
+========================= */
+
+if(token){
+
+  load();
+
+}else{
+
+  authScreen();
+
+}
+
 </script>
+
 </body>
 </html>
