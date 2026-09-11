@@ -62,12 +62,12 @@ app = FastAPI(
 
 
 # =========================================================
-# CORS
+# CORS (REKEBISHO LIMEWEKWA HAPA ILI KURUHUSU ORIGINS ZOTE)
 # =========================================================
 
 cors_raw = os.getenv(
     "CORS_ORIGINS",
-    "https://iddialy.github.io"
+    "*"
 )
 
 origins = [
@@ -78,7 +78,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Inaruhusu maombi kutoka tovuti na kikoa chochote
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
