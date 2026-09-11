@@ -5,18 +5,18 @@ from models import engine
 
 def add_column_if_missing(
     connection,
-    table_name: str,
-    column_name: str,
-    column_definition: str,
+    table_name,
+    column_name,
+    column_definition
 ):
     inspector = inspect(connection)
 
-    existing_columns = {
+    columns = {
         column["name"]
         for column in inspector.get_columns(table_name)
     }
 
-    if column_name not in existing_columns:
+    if column_name not in columns:
         print(
             f"Adding {table_name}.{column_name}..."
         )
@@ -35,7 +35,7 @@ def add_column_if_missing(
 
     else:
         print(
-            f"{table_name}.{column_name} already exists"
+            f"{table_name}.{column_name} already exists."
         )
 
 
@@ -44,29 +44,29 @@ def migrate():
 
     with engine.begin() as connection:
 
-        # -------------------------
-        # Merchant Business Profile
-        # -------------------------
+        # =========================
+        # MERCHANTS
+        # =========================
 
         add_column_if_missing(
             connection,
             "merchants",
             "business_location",
-            "VARCHAR(300)"
+            "VARCHAR(255)"
         )
 
         add_column_if_missing(
             connection,
             "merchants",
             "business_type",
-            "VARCHAR(150)"
+            "VARCHAR(100)"
         )
 
         add_column_if_missing(
             connection,
             "merchants",
             "business_hours",
-            "VARCHAR(300)"
+            "VARCHAR(255)"
         )
 
         add_column_if_missing(
@@ -76,15 +76,50 @@ def migrate():
             "TEXT"
         )
 
-        # -------------------------
-        # Product Image
-        # -------------------------
+        # =========================
+        # PRODUCTS
+        # =========================
 
         add_column_if_missing(
             connection,
             "products",
             "image_url",
             "TEXT"
+        )
+
+        add_column_if_missing(
+            connection,
+            "products",
+            "category",
+            "VARCHAR(100)"
+        )
+
+        add_column_if_missing(
+            connection,
+            "products",
+            "wholesale_price",
+            "FLOAT"
+        )
+
+        add_column_if_missing(
+            connection,
+            "products",
+            "retail_price",
+            "FLOAT"
+        )
+
+        add_column_if_missing(
+            connection,
+            "products",
+            "stock_quantity",
+            "INTEGER DEFAULT 0"
+        )
+
+        add_column_if_missing(
+            connection,
+            "products",
+            "status",
+            "VARCHAR(20) DEFAULT 'IPO'"
         )
 
     print("Database migration completed successfully.")
