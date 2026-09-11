@@ -98,41 +98,45 @@ async function api(path, opt = {}) {
       : {})
   };
 
-
-  const r =
-    await fetch(
+  let r;
+  try {
+    r = await fetch(
       API_URL + path,
       opt
     );
-
+  } catch (err) {
+    throw Error(
+      "Imeshindwa kuwasiliana na Server. Hakikisha internet ipo au subiri sekunde 30 Server ya Render iamke."
+    );
+  }
 
   let d = {};
 
-
   try {
-
     d = await r.json();
-
   } catch (_) {
-
     d = {
       detail:
         "Server haikurudisha jibu sahihi"
     };
-
   }
-
 
   if (!r.ok) {
 
-    throw Error(
-      d.detail ||
-      d.message ||
-      "Kuna tatizo"
-    );
+    // Kazi ya kutoa maelezo sahihi ya error hata kama ni array au object
+    let errorMsg = "Kuna tatizo";
+
+    if (typeof d.detail === "string") {
+      errorMsg = d.detail;
+    } else if (Array.isArray(d.detail) && d.detail.length > 0) {
+      errorMsg = d.detail[0].msg || "Taarifa ulizoweka hazijakamilika kikamilifu.";
+    } else if (d.message) {
+      errorMsg = d.message;
+    }
+
+    throw Error(errorMsg);
 
   }
-
 
   return d;
 }
@@ -289,7 +293,7 @@ function showSignup() {
     <input
       id="signupPhone"
       inputmode="tel"
-      placeholder="07XXXXXXXX"
+      placeholder="Namba ya simu (mfano: 07XXXXXXXX au 06XXXXXXXX)"
       class="w-full border p-3 rounded-xl mb-3">
 
 
@@ -431,6 +435,22 @@ async function signup() {
       "signupBtn"
     );
 
+  const bizName = document.getElementById("signupBiz").value.trim();
+  const email = document.getElementById("signupEmail").value.trim();
+  const phone = document.getElementById("signupPhone").value.trim();
+  const password = document.getElementById("signupPassword").value;
+
+  if (!bizName || !email || !phone || !password) {
+    msg.textContent = "Tafadhali jaza sehemu zote zilizowekwa.";
+    msg.className = "text-sm mt-3 text-red-600";
+    return;
+  }
+
+  if (password.length < 8) {
+    msg.textContent = "Password lazima iwe na angalau herufi 8.";
+    msg.className = "text-sm mt-3 text-red-600";
+    return;
+  }
 
   btn.disabled = true;
 
@@ -451,36 +471,15 @@ async function signup() {
           body:
             JSON.stringify({
 
-              business_name:
-                document
-                .getElementById(
-                  "signupBiz"
-                )
-                .value
-                .trim(),
+              business_name: bizName,
 
-              email:
-                document
-                .getElementById(
-                  "signupEmail"
-                )
-                .value
-                .trim(),
+              email: email,
 
-              phone_number:
-                document
-                .getElementById(
-                  "signupPhone"
-                )
-                .value
-                .trim(),
+              phone_number: phone,
 
-              password:
-                document
-                .getElementById(
-                  "signupPassword"
-                )
-                .value
+              password: password,
+
+              language_preference: "sw"
 
             })
         }
@@ -505,7 +504,7 @@ async function signup() {
       e.message;
 
     msg.className =
-      "text-sm mt-3 text-red-600";
+      "text-sm mt-3 text-red-600 font-semibold";
 
 
     btn.disabled = false;
