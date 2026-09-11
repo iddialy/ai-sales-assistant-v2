@@ -5,11 +5,26 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import jwt
-from fastapi import Depends, FastAPI, Header, HTTPException
+
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+)
+
 from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, EmailStr, Field
+
+from pydantic import (
+    BaseModel,
+    EmailStr,
+    Field,
+)
+
 from pwdlib import PasswordHash
+
 from sqlalchemy.orm import Session
 
 from ai_engine import (
@@ -42,7 +57,7 @@ Base.metadata.create_all(
 
 app = FastAPI(
     title="AI Sales Assistant Tanzania",
-    version="8.0.0"
+    version="9.0.0"
 )
 
 
@@ -162,6 +177,10 @@ class BusinessProfileIn(BaseModel):
     )
 
 
+# =========================================================
+# PRODUCT REQUEST MODEL
+# =========================================================
+
 class ProductIn(BaseModel):
 
     product_name: str = Field(
@@ -169,11 +188,70 @@ class ProductIn(BaseModel):
         max_length=200
     )
 
-    price: float = Field(
-        ge=0
+    category: Optional[str] = Field(
+        default=None,
+        max_length=100
     )
 
     description: str = ""
+
+    wholesale_price: Optional[float] = Field(
+        default=None,
+        ge=0
+    )
+
+    retail_price: float = Field(
+        ge=0
+    )
+
+    stock_quantity: int = Field(
+        default=0,
+        ge=0
+    )
+
+    status: str = Field(
+        default="IPO",
+        max_length=20
+    )
+
+    image_url: Optional[str] = Field(
+        default=None,
+        max_length=2000
+    )
+
+
+class ProductUpdateIn(BaseModel):
+
+    product_name: str = Field(
+        min_length=1,
+        max_length=200
+    )
+
+    category: Optional[str] = Field(
+        default=None,
+        max_length=100
+    )
+
+    description: str = ""
+
+    wholesale_price: Optional[float] = Field(
+        default=None,
+        ge=0
+    )
+
+    retail_price: float = Field(
+        ge=0
+    )
+
+    stock_quantity: int = Field(
+        default=0,
+        ge=0
+    )
+
+    status: str = Field(
+        default="IPO",
+        max_length=20
+    )
 
     image_url: Optional[str] = Field(
         default=None,
@@ -427,6 +505,77 @@ def public_merchant(
     }
 
 
+def public_product(
+    product: Product
+):
+
+    return {
+
+        "product_id":
+            product.product_id,
+
+        "product_name":
+            product.product_name,
+
+        "category":
+            product.category,
+
+        "description":
+            product.description,
+
+        "wholesale_price":
+            product.wholesale_price,
+
+        "retail_price":
+            product.retail_price,
+
+        "stock_quantity":
+            product.stock_quantity,
+
+        "status":
+            product.status,
+
+        "image_url":
+            product.image_url,
+    }
+
+
+def validate_product_status(
+    status: str,
+    stock_quantity: int
+) -> str:
+
+    status = (
+        status or "IPO"
+    ).strip().upper()
+
+    allowed = {
+        "IPO",
+        "IMEISHA"
+    }
+
+    if status not in allowed:
+
+        raise HTTPException(
+            status_code=400,
+
+            detail=(
+                "Product status lazima iwe "
+                "IPO au IMEISHA."
+            )
+        )
+
+    # -----------------------------------------
+    # Stock 0 automatically means IMEISHA
+    # -----------------------------------------
+
+    if stock_quantity == 0:
+
+        return "IMEISHA"
+
+    return status
+
+
 # =========================================================
 # SYSTEM
 # =========================================================
@@ -443,12 +592,15 @@ def root():
             "AI Sales Assistant Tanzania",
 
         "version":
-            "8.0.0",
+            "9.0.0",
 
         "payments":
             "disabled",
 
         "business_profile":
+            "enabled",
+
+        "product_management":
             "enabled",
 
         "streaming":
@@ -471,6 +623,9 @@ def health():
             )
             else "sqlite-fallback"
         ),
+
+        "product_management":
+            "enabled",
 
         "streaming":
             "enabled",
@@ -698,10 +853,6 @@ def update_business_profile(
     session: Session = Depends(db),
 ):
 
-    # -------------------------
-    # Basic business information
-    # -------------------------
-
     merchant.business_name = (
         data.business_name.strip()
     )
@@ -735,10 +886,6 @@ def update_business_profile(
         if data.business_description
         else None
     )
-
-    # -------------------------
-    # Payment information
-    # -------------------------
 
     payment_info = (
         merchant.payment_info
@@ -811,6 +958,11 @@ def add_product(
     session: Session = Depends(db),
 ):
 
+    status = validate_product_status(
+        data.status,
+        data.stock_quantity
+    )
+
     product = Product(
 
         product_id=(
@@ -825,12 +977,27 @@ def add_product(
             data.product_name.strip()
         ),
 
-        price=
-            data.price,
+        category=(
+            data.category.strip()
+            if data.category
+            else None
+        ),
 
         description=(
             data.description.strip()
         ),
+
+        wholesale_price=
+            data.wholesale_price,
+
+        retail_price=
+            data.retail_price,
+
+        stock_quantity=
+            data.stock_quantity,
+
+        status=
+            status,
 
         image_url=(
             data.image_url.strip()
@@ -854,10 +1021,17 @@ def add_product(
         "status":
             "success",
 
-        "product_id":
-            product.product_id,
+        "message":
+            "Bidhaa imehifadhiwa.",
+
+        "product":
+            public_product(product),
     }
 
+
+# =========================================================
+# GET PRODUCTS
+# =========================================================
 
 @app.get("/products")
 def products(
@@ -867,27 +1041,196 @@ def products(
 ):
 
     return [
-
-        {
-
-            "product_id":
-                p.product_id,
-
-            "product_name":
-                p.product_name,
-
-            "price":
-                p.price,
-
-            "description":
-                p.description,
-
-            "image_url":
-                p.image_url,
-        }
-
+        public_product(p)
         for p in merchant.products
     ]
+
+
+# =========================================================
+# GET SINGLE PRODUCT
+# =========================================================
+
+@app.get("/products/{product_id}")
+def get_product(
+    product_id: str,
+
+    merchant: Merchant = Depends(
+        current_merchant
+    ),
+
+    session: Session = Depends(db),
+):
+
+    product = (
+        session.query(Product)
+        .filter(
+            Product.product_id == product_id,
+            Product.merchant_id == merchant.user_id
+        )
+        .first()
+    )
+
+    if not product:
+
+        raise HTTPException(
+            status_code=404,
+
+            detail="Bidhaa haijapatikana."
+        )
+
+    return public_product(
+        product
+    )
+
+
+# =========================================================
+# EDIT PRODUCT
+# =========================================================
+
+@app.put("/products/{product_id}")
+def update_product(
+    product_id: str,
+
+    data: ProductUpdateIn,
+
+    merchant: Merchant = Depends(
+        current_merchant
+    ),
+
+    session: Session = Depends(db),
+):
+
+    product = (
+        session.query(Product)
+        .filter(
+            Product.product_id == product_id,
+
+            Product.merchant_id ==
+                merchant.user_id
+        )
+        .first()
+    )
+
+    if not product:
+
+        raise HTTPException(
+            status_code=404,
+
+            detail=(
+                "Bidhaa haijapatikana."
+            )
+        )
+
+    status = validate_product_status(
+        data.status,
+        data.stock_quantity
+    )
+
+    product.product_name = (
+        data.product_name.strip()
+    )
+
+    product.category = (
+        data.category.strip()
+        if data.category
+        else None
+    )
+
+    product.description = (
+        data.description.strip()
+    )
+
+    product.wholesale_price = (
+        data.wholesale_price
+    )
+
+    product.retail_price = (
+        data.retail_price
+    )
+
+    product.stock_quantity = (
+        data.stock_quantity
+    )
+
+    product.status = (
+        status
+    )
+
+    product.image_url = (
+        data.image_url.strip()
+        if data.image_url
+        else None
+    )
+
+    session.commit()
+
+    session.refresh(
+        product
+    )
+
+    return {
+
+        "status":
+            "success",
+
+        "message":
+            "Bidhaa imehaririwa vizuri.",
+
+        "product":
+            public_product(product),
+    }
+
+
+# =========================================================
+# DELETE PRODUCT
+# =========================================================
+
+@app.delete("/products/{product_id}")
+def delete_product(
+    product_id: str,
+
+    merchant: Merchant = Depends(
+        current_merchant
+    ),
+
+    session: Session = Depends(db),
+):
+
+    product = (
+        session.query(Product)
+        .filter(
+            Product.product_id == product_id,
+
+            Product.merchant_id ==
+                merchant.user_id
+        )
+        .first()
+    )
+
+    if not product:
+
+        raise HTTPException(
+            status_code=404,
+
+            detail=(
+                "Bidhaa haijapatikana."
+            )
+        )
+
+    session.delete(
+        product
+    )
+
+    session.commit()
+
+    return {
+
+        "status":
+            "success",
+
+        "message":
+            "Bidhaa imefutwa.",
+    }
 
 
 # =========================================================
@@ -902,13 +1245,6 @@ def chat(
         current_merchant
     ),
 ):
-
-    """
-    AI response sasa inatumwa kwa browser
-    vipande kwa vipande.
-
-    Browser haitasubiri response yote.
-    """
 
     merchant_id = (
         merchant.user_id
@@ -957,11 +1293,6 @@ def chat(
             )
 
         finally:
-
-            # -----------------------------------------
-            # Update message counter using fresh DB
-            # session.
-            # -----------------------------------------
 
             if full_response:
 
