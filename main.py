@@ -1,1443 +1,749 @@
-import os
-import uuid
+import base64
+import hashlib
 import hmac
-from datetime import datetime, timedelta
-from typing import Optional
+import json
+import os
+import secrets
+import time
+import uuid
+from datetime import datetime
+from typing import Generator
 
-import jwt
-
-from fastapi import (
-    Depends,
-    FastAPI,
-    Header,
-    HTTPException,
-)
-
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-
 from fastapi.responses import StreamingResponse
-
-from pydantic import (
-    BaseModel,
-    EmailStr,
-    Field,
-)
-
-from pwdlib import PasswordHash
-
-from sqlalchemy.orm import Session
+from sqlalchemy import inspect, text
+from sqlalchemy.orm import Session, joinedload
 
 from ai_engine import (
     generate_ai_sales_response,
     generate_ai_sales_response_stream,
 )
-
 from models import (
     Base,
+    ChatRequest,
+    LoginRequest,
     Merchant,
     MerchantPaymentInfo,
     Product,
+    ProductCreate,
+    ProductUpdate,
+    ProfileUpdate,
     SessionLocal,
+    SignupRequest,
     engine,
 )
 
-
-# =========================================================
-# CREATE DATABASE TABLES
-# =========================================================
-
-Base.metadata.create_all(
-    bind=engine
-)
-
-
-# =========================================================
-# APP
-# =========================================================
+APP_VERSION = "10.0.0"
 
 app = FastAPI(
     title="AI Sales Assistant Tanzania",
-    version="9.0.0"
+    version=APP_VERSION,
 )
-
-
-# =========================================================
-# CORS (REKEBISHO LIMEWEKWA HAPA ILI KURUHUSU ORIGINS ZOTE)
-# =========================================================
 
 cors_raw = os.getenv(
     "CORS_ORIGINS",
-    "*"
+    "https://iddialy.github.io",
 )
-
-origins = [
-    x.strip()
-    for x in cors_raw.split(",")
-    if x.strip()
-]
+origins = [item.strip() for item in cors_raw.split(",") if item.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Inaruhusu maombi kutoka tovuti na kikoa chochote
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    max_age=86400,
 )
 
+TOKEN_SECRET = os.getenv("TOKEN_SECRET", "").strip()
+if not TOKEN_SECRET:
+    TOKEN_SECRET = "dev-only-change-this-token-secret"
 
-# =========================================================
-# SECURITY
-# =========================================================
-
-password_hash = PasswordHash.recommended()
-
-JWT_SECRET = os.getenv(
-    "JWT_SECRET",
-    "CHANGE_ME_IN_RENDER"
-)
-
-JWT_ALG = "HS256"
+TOKEN_TTL = 60 * 60 * 24 * 30
 
 
-# =========================================================
-# REQUEST MODELS
-# =========================================================
-
-class SignupIn(BaseModel):
-
-    business_name: str = Field(
-        min_length=2,
-        max_length=200
-    )
-
-    email: EmailStr
-
-    phone_number: str
-
-    password: str = Field(
-        min_length=8,
-        max_length=128
-    )
-
-    language_preference: str = "sw"
-
-
-class LoginIn(BaseModel):
-
-    email: EmailStr
-
-    password: str
-
-
-class BusinessProfileIn(BaseModel):
-
-    business_name: str = Field(
-        min_length=2,
-        max_length=200
-    )
-
-    phone_number: str = Field(
-        min_length=9,
-        max_length=20
-    )
-
-    business_location: Optional[str] = Field(
-        default=None,
-        max_length=300
-    )
-
-    business_type: Optional[str] = Field(
-        default=None,
-        max_length=150
-    )
-
-    business_hours: Optional[str] = Field(
-        default=None,
-        max_length=300
-    )
-
-    business_description: Optional[str] = Field(
-        default=None,
-        max_length=5000
-    )
-
-    lipa_namba: Optional[str] = Field(
-        default=None,
-        max_length=100
-    )
-
-    phone_payment: Optional[str] = Field(
-        default=None,
-        max_length=20
-    )
-
-    bank_account: Optional[str] = Field(
-        default=None,
-        max_length=200
-    )
-
-
-# =========================================================
-# PRODUCT REQUEST MODEL
-# =========================================================
-
-class ProductIn(BaseModel):
-
-    product_name: str = Field(
-        min_length=1,
-        max_length=200
-    )
-
-    category: Optional[str] = Field(
-        default=None,
-        max_length=100
-    )
-
-    description: str = ""
-
-    wholesale_price: Optional[float] = Field(
-        default=None,
-        ge=0
-    )
-
-    retail_price: float = Field(
-        ge=0
-    )
-
-    stock_quantity: int = Field(
-        default=0,
-        ge=0
-    )
-
-    status: str = Field(
-        default="IPO",
-        max_length=20
-    )
-
-    image_url: Optional[str] = Field(
-        default=None,
-        max_length=2000
-    )
-
-
-class ProductUpdateIn(BaseModel):
-
-    product_name: str = Field(
-        min_length=1,
-        max_length=200
-    )
-
-    category: Optional[str] = Field(
-        default=None,
-        max_length=100
-    )
-
-    description: str = ""
-
-    wholesale_price: Optional[float] = Field(
-        default=None,
-        ge=0
-    )
-
-    retail_price: float = Field(
-        ge=0
-    )
-
-    stock_quantity: int = Field(
-        default=0,
-        ge=0
-    )
-
-    status: str = Field(
-        default="IPO",
-        max_length=20
-    )
-
-    image_url: Optional[str] = Field(
-        default=None,
-        max_length=2000
-    )
-
-
-class ChatIn(BaseModel):
-
-    message: str = Field(
-        min_length=1
-    )
-
-    platform: str = "web"
-
-
-# =========================================================
-# DATABASE
-# =========================================================
-
-def db():
-
-    session = SessionLocal()
-
+def get_db():
+    db = SessionLocal()
     try:
-
-        yield session
-
+        yield db
     finally:
+        db.close()
 
-        session.close()
 
-
-# =========================================================
-# AUTHENTICATION
-# =========================================================
-
-def token_for(
-    merchant: Merchant
-) -> str:
-
-    return jwt.encode(
-        {
-            "sub": merchant.user_id,
-
-            "exp": (
-                datetime.utcnow()
-                + timedelta(days=7)
-            ),
-        },
-
-        JWT_SECRET,
-
-        algorithm=JWT_ALG,
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    rounds = 210_000
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        rounds,
     )
+    salt_text = base64.urlsafe_b64encode(salt).decode("ascii")
+    digest_text = base64.urlsafe_b64encode(digest).decode("ascii")
+    return f"pbkdf2_sha256${rounds}${salt_text}${digest_text}"
 
 
-def current_merchant(
-    authorization: Optional[str] = Header(None),
-
-    session: Session = Depends(db),
-) -> Merchant:
-
-    if (
-        not authorization
-        or not authorization.startswith(
-            "Bearer "
-        )
-    ):
-
-        raise HTTPException(
-            status_code=401,
-            detail="Login required"
-        )
-
+def verify_password(password: str, stored: str) -> bool:
     try:
+        algorithm, rounds, salt_text, digest_text = stored.split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
 
-        token = authorization.split(
-            " ",
-            1
-        )[1]
+        salt = base64.urlsafe_b64decode(salt_text.encode("ascii"))
+        expected = base64.urlsafe_b64decode(digest_text.encode("ascii"))
+        actual = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt,
+            int(rounds),
+        )
+        return hmac.compare_digest(actual, expected)
+    except Exception:
+        return False
 
-        payload = jwt.decode(
-            token,
 
-            JWT_SECRET,
+def make_token(user_id: str) -> str:
+    payload = {
+        "sub": user_id,
+        "exp": int(time.time()) + TOKEN_TTL,
+    }
 
-            algorithms=[
-                JWT_ALG
-            ]
+    raw = base64.urlsafe_b64encode(
+        json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii").rstrip("=")
+
+    signature = hmac.new(
+        TOKEN_SECRET.encode("utf-8"),
+        raw.encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+
+    signature_text = base64.urlsafe_b64encode(signature).decode("ascii").rstrip("=")
+    return f"{raw}.{signature_text}"
+
+
+def decode_token(token: str) -> str:
+    try:
+        raw, signature_text = token.split(".", 1)
+
+        expected = hmac.new(
+            TOKEN_SECRET.encode("utf-8"),
+            raw.encode("ascii"),
+            hashlib.sha256,
+        ).digest()
+
+        supplied = base64.urlsafe_b64decode(
+            signature_text + "=" * (-len(signature_text) % 4)
         )
 
-    except jwt.PyJWTError:
+        if not hmac.compare_digest(expected, supplied):
+            raise ValueError("bad signature")
 
+        payload = json.loads(
+            base64.urlsafe_b64decode(
+                raw + "=" * (-len(raw) % 4)
+            ).decode("utf-8")
+        )
+
+        if int(payload["exp"]) < int(time.time()):
+            raise ValueError("expired")
+
+        return str(payload["sub"])
+    except Exception:
         raise HTTPException(
             status_code=401,
-
-            detail=(
-                "Session ime-expire. "
-                "Ingia tena."
-            )
+            detail="Session imekwisha au si sahihi. Tafadhali login tena.",
         )
 
-    merchant_id = payload.get(
-        "sub"
-    )
 
-    merchant = session.get(
-        Merchant,
-        merchant_id
-    )
-
-    if not merchant:
-
-        raise HTTPException(
-            status_code=401,
-
-            detail=(
-                "Account haipo kwenye database. "
-                "Tafadhali fungua account tena."
-            )
-        )
-
-    return merchant
+def public_product(product: Product):
+    return {
+        "product_id": product.product_id,
+        "product_name": product.product_name,
+        "category": product.category,
+        "description": product.description or "",
+        "wholesale_price": product.wholesale_price,
+        "retail_price": product.retail_price,
+        "price": product.retail_price,
+        "stock_quantity": product.stock_quantity,
+        "status": product.status,
+        "image_url": product.image_url,
+    }
 
 
-# =========================================================
-# HELPERS
-# =========================================================
-
-def normalize_phone(
-    phone: str
-) -> str:
-
-    digits = "".join(
-        c
-        for c in phone
-        if c.isdigit()
-    )
-
-    if digits.startswith("0"):
-
-        digits = (
-            "255"
-            + digits[1:]
-        )
-
-    if (
-        not digits.startswith("255")
-        or len(digits) != 12
-    ):
-
-        raise HTTPException(
-            status_code=400,
-
-            detail=(
-                "Tafadhali tumia namba ya Tanzania, "
-                "mfano 0712345678"
-            )
-        )
-
-    return digits
-
-
-def public_merchant(
-    merchant: Merchant,
-
-    session: Optional[Session] = None
-):
-
-    payment_info = (
-        merchant.payment_info
-    )
+def public_merchant(merchant: Merchant):
+    payment = merchant.payment_info
 
     return {
-
-        "user_id":
-            merchant.user_id,
-
-        "business_name":
-            merchant.business_name,
-
-        "email":
-            merchant.email,
-
-        "phone_number":
-            merchant.phone_number,
-
-        # -------------------------
-        # Business Profile
-        # -------------------------
-
-        "business_location":
-            merchant.business_location,
-
-        "business_type":
-            merchant.business_type,
-
-        "business_hours":
-            merchant.business_hours,
-
-        "business_description":
-            merchant.business_description,
-
-        # -------------------------
-        # Payment Details
-        # -------------------------
-
-        "payment_info": {
-
-            "lipa_namba": (
-                payment_info.lipa_namba
-                if payment_info
-                else None
-            ),
-
-            "phone_payment": (
-                payment_info.phone_payment
-                if payment_info
-                else None
-            ),
-
-            "bank_account": (
-                payment_info.bank_account
-                if payment_info
-                else None
-            ),
-        },
-
-        # -------------------------
-        # Subscription
-        # -------------------------
-
-        "plan_code":
-            merchant.plan_code,
-
-        "subscription_status":
-            merchant.subscription_status,
-
+        "user_id": merchant.user_id,
+        "business_name": merchant.business_name,
+        "email": merchant.email,
+        "phone_number": merchant.phone_number,
+        "language_preference": merchant.language_preference,
+        "subscription_status": merchant.subscription_status,
+        "plan_code": merchant.plan_code,
         "expiry_date": (
             merchant.expiry_date.isoformat()
             if merchant.expiry_date
             else None
         ),
-
-        "message_limit":
-            None,
-
-        "messages_used":
-            merchant.messages_used,
+        "message_limit": merchant.message_limit,
+        "messages_used": merchant.messages_used,
+        "business_location": merchant.business_location,
+        "business_type": merchant.business_type,
+        "business_hours": merchant.business_hours,
+        "business_description": merchant.business_description,
+        "payment_info": {
+            "lipa_namba": payment.lipa_namba if payment else None,
+            "bank_account": payment.bank_account if payment else None,
+            "phone_payment": payment.phone_payment if payment else None,
+        },
+        "products": [
+            public_product(product)
+            for product in merchant.products
+        ],
     }
 
 
-def public_product(
-    product: Product
-):
-
-    return {
-
-        "product_id":
-            product.product_id,
-
-        "product_name":
-            product.product_name,
-
-        "category":
-            product.category,
-
-        "description":
-            product.description,
-
-        "wholesale_price":
-            product.wholesale_price,
-
-        "retail_price":
-            product.retail_price,
-
-        "stock_quantity":
-            product.stock_quantity,
-
-        "status":
-            product.status,
-
-        "image_url":
-            product.image_url,
-    }
-
-
-def validate_product_status(
-    status: str,
-    stock_quantity: int
-) -> str:
-
-    status = (
-        status or "IPO"
-    ).strip().upper()
-
-    allowed = {
-        "IPO",
-        "IMEISHA"
-    }
-
-    if status not in allowed:
-
+def get_current_merchant(
+    authorization: str | None,
+    db: Session,
+) -> Merchant:
+    if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(
-            status_code=400,
-
-            detail=(
-                "Product status lazima iwe "
-                "IPO au IMEISHA."
-            )
+            status_code=401,
+            detail="Authorization token inahitajika.",
         )
 
-    # -----------------------------------------
-    # Stock 0 automatically means IMEISHA
-    # -----------------------------------------
+    token = authorization.split(" ", 1)[1].strip()
+    user_id = decode_token(token)
 
-    if stock_quantity == 0:
+    merchant = (
+        db.query(Merchant)
+        .options(
+            joinedload(Merchant.payment_info),
+            joinedload(Merchant.products),
+        )
+        .filter(Merchant.user_id == user_id)
+        .first()
+    )
 
-        return "IMEISHA"
+    if not merchant:
+        raise HTTPException(
+            status_code=401,
+            detail="Akaunti haijapatikana.",
+        )
 
-    return status
+    return merchant
 
 
-# =========================================================
-# SYSTEM
-# =========================================================
+def init_database():
+    Base.metadata.create_all(bind=engine)
+
+    additions = {
+        "merchants": {
+            "password_hash": "VARCHAR(255)",
+            "language_preference": "VARCHAR(5)",
+            "subscription_status": "VARCHAR(20)",
+            "plan_code": "VARCHAR(30)",
+            "expiry_date": "TIMESTAMP",
+            "message_limit": "INTEGER",
+            "messages_used": "INTEGER DEFAULT 0",
+            "business_location": "VARCHAR(255)",
+            "business_type": "VARCHAR(100)",
+            "business_hours": "VARCHAR(255)",
+            "business_description": "TEXT",
+            "created_at": "TIMESTAMP",
+        },
+        "products": {
+            "category": "VARCHAR(100)",
+            "wholesale_price": "FLOAT",
+            "retail_price": "FLOAT",
+            "stock_quantity": "INTEGER DEFAULT 0",
+            "status": "VARCHAR(20)",
+            "image_url": "TEXT",
+            "price": "FLOAT",
+        },
+        "merchant_payment_info": {
+            "merchant_id": "VARCHAR(64)",
+            "lipa_namba": "VARCHAR(100)",
+            "bank_account": "VARCHAR(200)",
+            "phone_payment": "VARCHAR(30)",
+        },
+    }
+
+    with engine.begin() as connection:
+        for table_name, columns in additions.items():
+            inspector = inspect(connection)
+
+            if not inspector.has_table(table_name):
+                continue
+
+            existing = {
+                column["name"]
+                for column in inspector.get_columns(table_name)
+            }
+
+            for column_name, definition in columns.items():
+                if column_name in existing:
+                    continue
+
+                try:
+                    connection.execute(
+                        text(
+                            f'ALTER TABLE "{table_name}" '
+                            f'ADD COLUMN "{column_name}" {definition}'
+                        )
+                    )
+                except Exception:
+                    # The next startup can retry if a database engine rejects
+                    # a particular compatibility ALTER TABLE statement.
+                    pass
+
+        # Preserve old product prices where a legacy `price` column exists.
+        inspector = inspect(connection)
+        if inspector.has_table("products"):
+            columns = {
+                column["name"]
+                for column in inspector.get_columns("products")
+            }
+            if "price" in columns and "retail_price" in columns:
+                try:
+                    connection.execute(
+                        text(
+                            "UPDATE products "
+                            "SET retail_price = price "
+                            "WHERE retail_price IS NULL AND price IS NOT NULL"
+                        )
+                    )
+                except Exception:
+                    pass
+
+
+@app.on_event("startup")
+def startup():
+    init_database()
+
 
 @app.get("/")
 def root():
-
     return {
-
-        "system_status":
-            "Online",
-
-        "service":
-            "AI Sales Assistant Tanzania",
-
-        "version":
-            "9.0.0",
-
-        "payments":
-            "disabled",
-
-        "business_profile":
-            "enabled",
-
-        "product_management":
-            "enabled",
-
-        "streaming":
-            "enabled",
+        "system_status": "Online",
+        "service": "AI Sales Assistant Tanzania",
+        "version": APP_VERSION,
+        "authentication": "enabled",
+        "product_management": "enabled",
+        "streaming": "enabled",
     }
 
 
 @app.get("/health")
 def health():
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
 
-    return {
+        return {
+            "status": "ok",
+            "database": "connected",
+            "version": APP_VERSION,
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Database error: {exc}",
+        )
 
-        "status":
-            "ok",
-
-        "database": (
-            "configured"
-            if os.getenv(
-                "DATABASE_URL"
-            )
-            else "sqlite-fallback"
-        ),
-
-        "product_management":
-            "enabled",
-
-        "streaming":
-            "enabled",
-    }
-
-
-# =========================================================
-# SIGNUP
-# =========================================================
 
 @app.post("/auth/signup")
 def signup(
-    data: SignupIn,
-
-    session: Session = Depends(db)
+    payload: SignupRequest,
+    db: Session = Depends(get_db),
 ):
-
-    email = str(
-        data.email
-    ).lower().strip()
+    email = str(payload.email).lower().strip()
 
     existing = (
-        session.query(Merchant)
-        .filter(
-            Merchant.email == email
-        )
+        db.query(Merchant)
+        .filter(Merchant.email == email)
         .first()
     )
 
     if existing:
-
         raise HTTPException(
             status_code=409,
-
-            detail=(
-                "Email tayari imesajiliwa. "
-                "Tumia Login."
-            )
+            detail="Email hii tayari imesajiliwa. Tumia Login.",
         )
 
     merchant = Merchant(
-
-        user_id=(
-            "m_"
-            + uuid.uuid4().hex[:16]
-        ),
-
-        business_name=(
-            data.business_name.strip()
-        ),
-
+        user_id="m_" + uuid.uuid4().hex,
+        business_name=payload.business_name.strip(),
         email=email,
-
-        phone_number=normalize_phone(
-            data.phone_number
-        ),
-
-        password_hash=(
-            password_hash.hash(
-                data.password
-            )
-        ),
-
-        language_preference=(
-            data.language_preference
-        ),
-
+        phone_number=payload.phone_number.strip(),
+        password_hash=hash_password(payload.password),
+        language_preference="sw",
         subscription_status="Active",
-
         plan_code="test",
-
-        message_limit=None,
-
         messages_used=0,
+        created_at=datetime.utcnow(),
     )
 
-    session.add(
-        merchant
-    )
+    merchant.payment_info = MerchantPaymentInfo()
 
-    session.commit()
+    db.add(merchant)
+    db.commit()
+    db.refresh(merchant)
 
-    session.refresh(
-        merchant
-    )
+    token = make_token(merchant.user_id)
 
     return {
-
-        "token":
-            token_for(merchant),
-
-        "merchant":
-            public_merchant(
-                merchant,
-                session
-            ),
+        "token": token,
+        "merchant": public_merchant(merchant),
     }
 
-
-# =========================================================
-# LOGIN
-# =========================================================
 
 @app.post("/auth/login")
 def login(
-    data: LoginIn,
-
-    session: Session = Depends(db)
+    payload: LoginRequest,
+    db: Session = Depends(get_db),
 ):
-
-    email = str(
-        data.email
-    ).lower().strip()
+    email = str(payload.email).lower().strip()
 
     merchant = (
-        session.query(Merchant)
-        .filter(
-            Merchant.email == email
+        db.query(Merchant)
+        .options(
+            joinedload(Merchant.payment_info),
+            joinedload(Merchant.products),
         )
+        .filter(Merchant.email == email)
         .first()
     )
 
-    if not merchant:
-
+    if not merchant or not verify_password(
+        payload.password,
+        merchant.password_hash,
+    ):
         raise HTTPException(
             status_code=401,
-
-            detail=(
-                "Account haipo. "
-                "Hakikisha email au fungua Sign Up."
-            )
-        )
-
-    try:
-
-        valid = (
-            password_hash.verify(
-                data.password,
-
-                merchant.password_hash
-            )
-        )
-
-    except Exception:
-
-        valid = False
-
-    if not valid:
-
-        raise HTTPException(
-            status_code=401,
-
-            detail=(
-                "Password si sahihi."
-            )
+            detail="Email au password si sahihi.",
         )
 
     return {
-
-        "token":
-            token_for(merchant),
-
-        "merchant":
-            public_merchant(
-                merchant,
-                session
-            ),
+        "token": make_token(merchant.user_id),
+        "merchant": public_merchant(merchant),
     }
 
 
-# =========================================================
-# CURRENT ACCOUNT
-# =========================================================
-
-@app.get("/auth/me")
+@app.get("/me")
 def me(
-    merchant: Merchant = Depends(
-        current_merchant
-    ),
-
-    session: Session = Depends(db)
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ):
-
-    session.refresh(
-        merchant
-    )
-
     return public_merchant(
-        merchant,
-        session
+        get_current_merchant(authorization, db)
     )
 
 
-# =========================================================
-# BUSINESS PROFILE
-# =========================================================
-
-@app.get("/business-profile")
-def get_business_profile(
-    merchant: Merchant = Depends(
-        current_merchant
-    ),
-
-    session: Session = Depends(db)
+@app.put("/profile")
+def update_profile(
+    payload: ProfileUpdate,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ):
+    merchant = get_current_merchant(authorization, db)
+    data = payload.model_dump(exclude_unset=True)
 
-    session.refresh(
-        merchant
-    )
+    payment_fields = {
+        "lipa_namba",
+        "bank_account",
+        "phone_payment",
+    }
 
-    return public_merchant(
-        merchant,
-        session
-    )
+    for key, value in data.items():
+        if key in payment_fields:
+            continue
 
+        if hasattr(merchant, key):
+            setattr(merchant, key, value)
 
-@app.put("/business-profile")
-def update_business_profile(
-    data: BusinessProfileIn,
+    payment = merchant.payment_info
 
-    merchant: Merchant = Depends(
-        current_merchant
-    ),
-
-    session: Session = Depends(db),
-):
-
-    merchant.business_name = (
-        data.business_name.strip()
-    )
-
-    merchant.phone_number = (
-        normalize_phone(
-            data.phone_number
-        )
-    )
-
-    merchant.business_location = (
-        data.business_location.strip()
-        if data.business_location
-        else None
-    )
-
-    merchant.business_type = (
-        data.business_type.strip()
-        if data.business_type
-        else None
-    )
-
-    merchant.business_hours = (
-        data.business_hours.strip()
-        if data.business_hours
-        else None
-    )
-
-    merchant.business_description = (
-        data.business_description.strip()
-        if data.business_description
-        else None
-    )
-
-    payment_info = (
-        merchant.payment_info
-    )
-
-    if not payment_info:
-
-        payment_info = MerchantPaymentInfo(
+    if payment is None:
+        payment = MerchantPaymentInfo(
             merchant_id=merchant.user_id
         )
+        merchant.payment_info = payment
 
-        session.add(
-            payment_info
+    for key in payment_fields:
+        if key in data:
+            setattr(payment, key, data[key])
+
+    db.add(merchant)
+    db.add(payment)
+    db.commit()
+
+    refreshed = (
+        db.query(Merchant)
+        .options(
+            joinedload(Merchant.payment_info),
+            joinedload(Merchant.products),
         )
-
-    payment_info.lipa_namba = (
-        data.lipa_namba.strip()
-        if data.lipa_namba
-        else None
+        .filter(Merchant.user_id == merchant.user_id)
+        .first()
     )
 
-    payment_info.phone_payment = (
-        normalize_phone(
-            data.phone_payment
-        )
-        if data.phone_payment
-        else None
-    )
+    return public_merchant(refreshed)
 
-    payment_info.bank_account = (
-        data.bank_account.strip()
-        if data.bank_account
-        else None
-    )
 
-    session.commit()
-
-    session.refresh(
-        merchant
-    )
+@app.get("/products")
+def list_products(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    merchant = get_current_merchant(authorization, db)
 
     return {
-
-        "status":
-            "success",
-
-        "message":
-            "Business Profile imehifadhiwa.",
-
-        "merchant":
-            public_merchant(
-                merchant,
-                session
-            ),
+        "products": [
+            public_product(product)
+            for product in merchant.products
+        ]
     }
 
 
-# =========================================================
-# PRODUCTS
-# =========================================================
+def validate_product_payload(payload):
+    if (
+        payload.retail_price is None
+        and payload.wholesale_price is None
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Weka angalau bei ya rejareja au jumla.",
+        )
+
+    if payload.status not in {"IPO", "IMEISHA"}:
+        raise HTTPException(
+            status_code=422,
+            detail="Status lazima iwe IPO au IMEISHA.",
+        )
+
 
 @app.post("/products")
-def add_product(
-    data: ProductIn,
-
-    merchant: Merchant = Depends(
-        current_merchant
-    ),
-
-    session: Session = Depends(db),
+def create_product(
+    payload: ProductCreate,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ):
+    merchant = get_current_merchant(authorization, db)
+    validate_product_payload(payload)
 
-    status = validate_product_status(
-        data.status,
-        data.stock_quantity
+    data = payload.model_dump()
+    data["legacy_price"] = (
+        payload.retail_price
+        if payload.retail_price is not None
+        else payload.wholesale_price
     )
 
     product = Product(
-
-        product_id=(
-            "p_"
-            + uuid.uuid4().hex[:16]
-        ),
-
-        merchant_id=
-            merchant.user_id,
-
-        product_name=(
-            data.product_name.strip()
-        ),
-
-        category=(
-            data.category.strip()
-            if data.category
-            else None
-        ),
-
-        description=(
-            data.description.strip()
-        ),
-
-        wholesale_price=
-            data.wholesale_price,
-
-        retail_price=
-            data.retail_price,
-
-        stock_quantity=
-            data.stock_quantity,
-
-        status=
-            status,
-
-        image_url=(
-            data.image_url.strip()
-            if data.image_url
-            else None
-        ),
+        product_id="p_" + uuid.uuid4().hex,
+        merchant_id=merchant.user_id,
+        **data,
     )
 
-    session.add(
-        product
-    )
+    db.add(product)
+    db.commit()
+    db.refresh(product)
 
-    session.commit()
+    return public_product(product)
 
-    session.refresh(
-        product
-    )
-
-    return {
-
-        "status":
-            "success",
-
-        "message":
-            "Bidhaa imehifadhiwa.",
-
-        "product":
-            public_product(product),
-    }
-
-
-# =========================================================
-# GET PRODUCTS
-# =========================================================
-
-@app.get("/products")
-def products(
-    merchant: Merchant = Depends(
-        current_merchant
-    )
-):
-
-    return [
-        public_product(p)
-        for p in merchant.products
-    ]
-
-
-# =========================================================
-# GET SINGLE PRODUCT
-# =========================================================
-
-@app.get("/products/{product_id}")
-def get_product(
-    product_id: str,
-
-    merchant: Merchant = Depends(
-        current_merchant
-    ),
-
-    session: Session = Depends(db),
-):
-
-    product = (
-        session.query(Product)
-        .filter(
-            Product.product_id == product_id,
-            Product.merchant_id == merchant.user_id
-        )
-        .first()
-    )
-
-    if not product:
-
-        raise HTTPException(
-            status_code=404,
-
-            detail="Bidhaa haijapatikana."
-        )
-
-    return public_product(
-        product
-    )
-
-
-# =========================================================
-# EDIT PRODUCT
-# =========================================================
 
 @app.put("/products/{product_id}")
 def update_product(
     product_id: str,
-
-    data: ProductUpdateIn,
-
-    merchant: Merchant = Depends(
-        current_merchant
-    ),
-
-    session: Session = Depends(db),
+    payload: ProductUpdate,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ):
+    merchant = get_current_merchant(authorization, db)
 
     product = (
-        session.query(Product)
+        db.query(Product)
         .filter(
             Product.product_id == product_id,
-
-            Product.merchant_id ==
-                merchant.user_id
+            Product.merchant_id == merchant.user_id,
         )
         .first()
     )
 
     if not product:
-
         raise HTTPException(
             status_code=404,
-
-            detail=(
-                "Bidhaa haijapatikana."
-            )
+            detail="Bidhaa haijapatikana.",
         )
 
-    status = validate_product_status(
-        data.status,
-        data.stock_quantity
+    validate_product_payload(payload)
+
+    data = payload.model_dump()
+    data["legacy_price"] = (
+        payload.retail_price
+        if payload.retail_price is not None
+        else payload.wholesale_price
     )
 
-    product.product_name = (
-        data.product_name.strip()
-    )
+    for key, value in data.items():
+        setattr(product, key, value)
 
-    product.category = (
-        data.category.strip()
-        if data.category
-        else None
-    )
+    db.commit()
+    db.refresh(product)
 
-    product.description = (
-        data.description.strip()
-    )
+    return public_product(product)
 
-    product.wholesale_price = (
-        data.wholesale_price
-    )
-
-    product.retail_price = (
-        data.retail_price
-    )
-
-    product.stock_quantity = (
-        data.stock_quantity
-    )
-
-    product.status = (
-        status
-    )
-
-    product.image_url = (
-        data.image_url.strip()
-        if data.image_url
-        else None
-    )
-
-    session.commit()
-
-    session.refresh(
-        product
-    )
-
-    return {
-
-        "status":
-            "success",
-
-        "message":
-            "Bidhaa imehaririwa vizuri.",
-
-        "product":
-            public_product(product),
-    }
-
-
-# =========================================================
-# DELETE PRODUCT
-# =========================================================
 
 @app.delete("/products/{product_id}")
 def delete_product(
     product_id: str,
-
-    merchant: Merchant = Depends(
-        current_merchant
-    ),
-
-    session: Session = Depends(db),
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ):
+    merchant = get_current_merchant(authorization, db)
 
     product = (
-        session.query(Product)
+        db.query(Product)
         .filter(
             Product.product_id == product_id,
-
-            Product.merchant_id ==
-                merchant.user_id
+            Product.merchant_id == merchant.user_id,
         )
         .first()
     )
 
     if not product:
-
         raise HTTPException(
             status_code=404,
-
-            detail=(
-                "Bidhaa haijapatikana."
-            )
+            detail="Bidhaa haijapatikana.",
         )
 
-    session.delete(
-        product
-    )
-
-    session.commit()
+    db.delete(product)
+    db.commit()
 
     return {
-
-        "status":
-            "success",
-
-        "message":
-            "Bidhaa imefutwa.",
+        "status": "success",
+        "message": "Bidhaa imefutwa.",
     }
 
 
-# =========================================================
-# AI CHAT - REAL STREAMING
-# =========================================================
-
 @app.post("/chat")
 def chat(
-    data: ChatIn,
-
-    merchant: Merchant = Depends(
-        current_merchant
-    ),
+    payload: ChatRequest,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
 ):
+    merchant = get_current_merchant(authorization, db)
 
-    merchant_id = (
-        merchant.user_id
-    )
+    try:
+        reply = generate_ai_sales_response(
+            merchant,
+            payload.message,
+            "website",
+        )
+        return {
+            "status": "success",
+            "reply": reply,
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        )
 
-    customer_message = (
-        data.message
-    )
 
-    platform = (
-        data.platform
-    )
+@app.post("/chat/stream")
+def chat_stream(
+    payload: ChatRequest,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    merchant = get_current_merchant(authorization, db)
+    merchant_id = merchant.user_id
 
-    def stream_response():
-
-        full_response = []
+    def generator() -> Generator[str, None, None]:
+        local_db = SessionLocal()
 
         try:
-
-            for chunk in (
-                generate_ai_sales_response_stream(
-                    merchant,
-                    customer_message,
-                    platform
+            fresh = (
+                local_db.query(Merchant)
+                .options(
+                    joinedload(Merchant.payment_info),
+                    joinedload(Merchant.products),
                 )
-            ):
-
-                if chunk:
-
-                    full_response.append(
-                        chunk
-                    )
-
-                    yield chunk
-
-        except Exception as e:
-
-            print(
-                "Streaming endpoint error:",
-                str(e)
+                .filter(Merchant.user_id == merchant_id)
+                .first()
             )
 
-            yield (
-                "\n\nSamahani, AI imepata "
-                "tatizo kwa sasa."
+            if not fresh:
+                yield "Samahani, akaunti haijapatikana."
+                return
+
+            yield from generate_ai_sales_response_stream(
+                fresh,
+                payload.message,
+                "website",
             )
+
+        except Exception as exc:
+            yield f"Samahani, AI imepata tatizo: {exc}"
 
         finally:
-
-            if full_response:
-
-                update_session = (
-                    SessionLocal()
-                )
-
-                try:
-
-                    db_merchant = (
-                        update_session.get(
-                            Merchant,
-                            merchant_id
-                        )
-                    )
-
-                    if db_merchant:
-
-                        db_merchant.messages_used += 1
-
-                        update_session.commit()
-
-                except Exception as e:
-
-                    update_session.rollback()
-
-                    print(
-                        "Message counter error:",
-                        str(e)
-                    )
-
-                finally:
-
-                    update_session.close()
+            local_db.close()
 
     return StreamingResponse(
-
-        stream_response(),
-
-        media_type=(
-            "text/plain; charset=utf-8"
-        ),
-
+        generator(),
+        media_type="text/plain; charset=utf-8",
         headers={
-
-            "Cache-Control":
-                "no-cache",
-
-            "X-Accel-Buffering":
-                "no",
-
-            "Connection":
-                "keep-alive",
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
         },
     )
 
 
-# =========================================================
-# INCOMING WEBHOOK
-# =========================================================
-
 @app.post("/webhook/message")
-def incoming(
+def webhook_message(
     merchant_id: str,
-
     platform: str,
-
     customer_message: str,
-
-    x_webhook_secret:
-        Optional[str] = Header(None),
-
-    session: Session = Depends(db),
+    db: Session = Depends(get_db),
 ):
-
-    secret = os.getenv(
-        "WEBHOOK_SECRET",
-        ""
-    )
-
-    if (
-        secret
-        and not hmac.compare_digest(
-            x_webhook_secret or "",
-            secret
+    merchant = (
+        db.query(Merchant)
+        .options(
+            joinedload(Merchant.payment_info),
+            joinedload(Merchant.products),
         )
-    ):
-
-        raise HTTPException(
-            status_code=401,
-
-            detail=(
-                "Invalid webhook secret"
-            )
-        )
-
-    merchant = session.get(
-        Merchant,
-        merchant_id
+        .filter(Merchant.user_id == merchant_id)
+        .first()
     )
 
     if not merchant:
-
         raise HTTPException(
             status_code=404,
-
-            detail=(
-                "Mfanyabiashara hajapatikana"
-            )
+            detail="Mfanyabiashara hajapatikana.",
         )
 
-    reply = (
-        generate_ai_sales_response(
+    try:
+        reply = generate_ai_sales_response(
             merchant,
             customer_message,
-            platform
+            platform,
         )
-    )
-
-    if reply == "SERVICE_INACTIVE":
 
         return {
-
-            "status":
-                "blocked",
-
-            "message": (
-                "AI haijaweza kuanza. "
-                "Hakikisha GEMINI_API_KEY "
-                "imewekwa kwenye Render."
-            ),
+            "status": "success",
+            "merchant_id": merchant_id,
+            "platform": platform,
+            "customer_message": customer_message,
+            "ai_reply": reply,
         }
-
-    merchant.messages_used += 1
-
-    session.commit()
-
-    return {
-
-        "status":
-            "success",
-
-        "merchant_id":
-            merchant_id,
-
-        "ai_reply":
-            reply,
-    }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        )
