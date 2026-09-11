@@ -55,34 +55,6 @@ class Merchant(Base):
         default="sw"
     )
 
-    # -------------------------
-    # Business Profile
-    # -------------------------
-
-    business_location: Mapped[Optional[str]] = mapped_column(
-        String(300),
-        nullable=True
-    )
-
-    business_type: Mapped[Optional[str]] = mapped_column(
-        String(150),
-        nullable=True
-    )
-
-    business_hours: Mapped[Optional[str]] = mapped_column(
-        String(300),
-        nullable=True
-    )
-
-    business_description: Mapped[Optional[str]] = mapped_column(
-        Text,
-        nullable=True
-    )
-
-    # -------------------------
-    # Subscription
-    # -------------------------
-
     subscription_status: Mapped[str] = mapped_column(
         String(20),
         default="Pending"
@@ -112,10 +84,6 @@ class Merchant(Base):
         DateTime,
         default=datetime.utcnow
     )
-
-    # -------------------------
-    # Relationships
-    # -------------------------
 
     payment_info: Mapped["MerchantPaymentInfo"] = relationship(
         back_populates="merchant",
@@ -147,7 +115,6 @@ class MerchantPaymentInfo(Base):
         unique=True
     )
 
-    # Merchant's own payment information
     lipa_namba: Mapped[Optional[str]] = mapped_column(
         String(100),
         nullable=True
@@ -185,15 +152,34 @@ class Product(Base):
         String(200)
     )
 
-    price: Mapped[float] = mapped_column(
-        Float
+    category: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True
     )
 
     description: Mapped[str] = mapped_column(
         Text
     )
 
-    # Product image URL
+    wholesale_price: Mapped[Optional[float]] = mapped_column(
+        Float,
+        nullable=True
+    )
+
+    retail_price: Mapped[float] = mapped_column(
+        Float
+    )
+
+    stock_quantity: Mapped[int] = mapped_column(
+        Integer,
+        default=0
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="IPO"
+    )
+
     image_url: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True
@@ -264,10 +250,6 @@ class Payment(Base):
         back_populates="payments"
     )
 
-
-# -------------------------
-# Database
-# -------------------------
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
