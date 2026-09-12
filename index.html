@@ -5,253 +5,2847 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI Sales Assistant Tanzania</title>
   <script src="https://cdn.tailwindcss.com"></script>
+
   <style>
-    body{background:#f8fafc}.hidden{display:none!important}.chat-scroll{max-height:460px;overflow:auto}.msg{white-space:pre-wrap;word-break:break-word}
+    body{background:#f8fafc}
+    .hidden{display:none!important}
+    .chat-scroll{max-height:460px;overflow:auto}
+    .msg{white-space:pre-wrap;word-break:break-word}
   </style>
 </head>
+
 <body class="text-slate-800">
+
 <header class="bg-blue-900 text-white sticky top-0 z-20 shadow">
   <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-    <div><h1 class="font-bold text-lg">SalesAI</h1><p class="text-xs text-blue-200">AI Sales Assistant Tanzania</p></div>
-    <div id="topActions" class="hidden flex gap-2"><button id="logoutBtn" class="bg-white/10 px-3 py-2 rounded-lg text-sm">Logout</button></div>
+    <div>
+      <h1 class="font-bold text-lg">SalesAI</h1>
+      <p class="text-xs text-blue-200">AI Sales Assistant Tanzania</p>
+    </div>
+
+    <div id="topActions" class="hidden flex gap-2">
+      <button id="logoutBtn"
+        class="bg-white/10 px-3 py-2 rounded-lg text-sm">
+        Logout
+      </button>
+    </div>
   </div>
 </header>
 
 <main class="max-w-6xl mx-auto p-4 md:p-6">
+
+  <!-- AUTH -->
   <section id="authView" class="max-w-md mx-auto mt-6">
+
     <div class="bg-white rounded-2xl shadow p-5">
+
       <div class="flex gap-2 mb-5">
-        <button id="loginTab" class="flex-1 bg-blue-900 text-white rounded-lg py-2 font-semibold">Login</button>
-        <button id="signupTab" class="flex-1 bg-slate-100 rounded-lg py-2 font-semibold">Sign Up</button>
+
+        <button id="loginTab"
+          class="flex-1 bg-blue-900 text-white rounded-lg py-2 font-semibold">
+          Login
+        </button>
+
+        <button id="signupTab"
+          class="flex-1 bg-slate-100 rounded-lg py-2 font-semibold">
+          Sign Up
+        </button>
+
       </div>
-      <div id="authMessage" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
 
+      <div id="authMessage"
+        class="hidden mb-4 p-3 rounded-lg text-sm">
+      </div>
+
+      <!-- LOGIN -->
       <form id="loginForm" class="space-y-4">
-        <div><label class="text-sm font-semibold">Email</label><input id="loginEmail" type="email" autocomplete="email" required class="mt-1 w-full p-3 border rounded-lg"></div>
-        <div><label class="text-sm font-semibold">Password</label><input id="loginPassword" type="password" autocomplete="current-password" required class="mt-1 w-full p-3 border rounded-lg"></div>
-        <button id="loginBtn" class="w-full bg-blue-900 text-white py-3 rounded-lg font-bold">Login</button>
+
+        <div>
+          <label class="text-sm font-semibold">Email</label>
+
+          <input
+            id="loginEmail"
+            type="email"
+            autocomplete="email"
+            required
+            class="mt-1 w-full p-3 border rounded-lg">
+        </div>
+
+        <div>
+          <label class="text-sm font-semibold">Password</label>
+
+          <input
+            id="loginPassword"
+            type="password"
+            autocomplete="current-password"
+            required
+            class="mt-1 w-full p-3 border rounded-lg">
+        </div>
+
+        <button
+          id="loginBtn"
+          class="w-full bg-blue-900 text-white py-3 rounded-lg font-bold">
+          Login
+        </button>
+
       </form>
 
+      <!-- SIGNUP -->
       <form id="signupForm" class="hidden space-y-4">
-        <div><label class="text-sm font-semibold">Jina la biashara</label><input id="signupBusiness" required class="mt-1 w-full p-3 border rounded-lg"></div>
-        <div><label class="text-sm font-semibold">Email</label><input id="signupEmail" type="email" autocomplete="email" required class="mt-1 w-full p-3 border rounded-lg"></div>
-        <div><label class="text-sm font-semibold">Namba ya simu</label><input id="signupPhone" type="tel" required class="mt-1 w-full p-3 border rounded-lg"></div>
-        <div><label class="text-sm font-semibold">Password</label><input id="signupPassword" type="password" minlength="6" autocomplete="new-password" required class="mt-1 w-full p-3 border rounded-lg"></div>
-        <button id="signupBtn" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold">Sign Up</button>
+
+        <div>
+          <label class="text-sm font-semibold">
+            Jina la biashara
+          </label>
+
+          <input
+            id="signupBusiness"
+            required
+            class="mt-1 w-full p-3 border rounded-lg">
+        </div>
+
+        <div>
+          <label class="text-sm font-semibold">
+            Email
+          </label>
+
+          <input
+            id="signupEmail"
+            type="email"
+            autocomplete="email"
+            required
+            class="mt-1 w-full p-3 border rounded-lg">
+        </div>
+
+        <div>
+          <label class="text-sm font-semibold">
+            Namba ya simu
+          </label>
+
+          <input
+            id="signupPhone"
+            type="tel"
+            required
+            class="mt-1 w-full p-3 border rounded-lg">
+        </div>
+
+        <div>
+          <label class="text-sm font-semibold">
+            Password
+          </label>
+
+          <input
+            id="signupPassword"
+            type="password"
+            minlength="6"
+            autocomplete="new-password"
+            required
+            class="mt-1 w-full p-3 border rounded-lg">
+        </div>
+
+        <button
+          id="signupBtn"
+          class="w-full bg-green-600 text-white py-3 rounded-lg font-bold">
+          Sign Up
+        </button>
+
       </form>
+
     </div>
+
   </section>
 
+
+  <!-- APP -->
   <section id="appView" class="hidden space-y-6">
-    <div id="pageMessage" class="hidden p-3 rounded-lg text-sm"></div>
+
+    <div id="pageMessage"
+      class="hidden p-3 rounded-lg text-sm">
+    </div>
+
+
+    <!-- TOP SUMMARY -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+
+      <div class="bg-white rounded-2xl shadow p-4">
+        <p class="text-xs text-slate-500">
+          Bidhaa
+        </p>
+
+        <p id="metricProducts"
+          class="text-2xl font-bold mt-1">
+          0
+        </p>
+      </div>
+
+
+      <div class="bg-white rounded-2xl shadow p-4">
+        <p class="text-xs text-slate-500">
+          Customers
+        </p>
+
+        <p id="metricCustomers"
+          class="text-2xl font-bold mt-1">
+          0
+        </p>
+      </div>
+
+
+      <div class="bg-white rounded-2xl shadow p-4">
+        <p class="text-xs text-slate-500">
+          Bidhaa IPO
+        </p>
+
+        <p id="metricAvailable"
+          class="text-2xl font-bold mt-1">
+          0
+        </p>
+      </div>
+
+
+      <div class="bg-white rounded-2xl shadow p-4">
+        <p class="text-xs text-slate-500">
+          Stock
+        </p>
+
+        <p id="metricStock"
+          class="text-2xl font-bold mt-1">
+          0
+        </p>
+      </div>
+
+    </div>
+
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- LEFT -->
       <aside class="space-y-6">
+
+        <!-- ACCOUNT -->
         <div class="bg-white rounded-2xl shadow p-5">
-          <h2 class="font-bold text-lg">Hali ya Akaunti</h2>
-          <p id="accountBusiness" class="mt-2 font-semibold"></p>
-          <p id="accountEmail" class="text-sm text-slate-500"></p>
-          <div class="mt-4 flex justify-between text-sm"><span>Status</span><b id="accountStatus">Active</b></div>
+
+          <h2 class="font-bold text-lg">
+            Hali ya Akaunti
+          </h2>
+
+          <p id="accountBusiness"
+            class="mt-2 font-semibold">
+          </p>
+
+          <p id="accountEmail"
+            class="text-sm text-slate-500">
+          </p>
+
+          <div class="mt-4 flex justify-between text-sm">
+            <span>Status</span>
+            <b id="accountStatus">Active</b>
+          </div>
+
         </div>
 
+
+        <!-- PROFILE -->
         <div class="bg-white rounded-2xl shadow p-5">
-          <h2 class="font-bold text-lg mb-4">Business Profile</h2>
+
+          <h2 class="font-bold text-lg mb-4">
+            Business Profile
+          </h2>
+
           <form id="profileForm" class="space-y-3">
-            <input id="profileBusiness" placeholder="Jina la biashara" class="w-full p-3 border rounded-lg" required>
-            <input id="profilePhone" placeholder="Namba ya simu" class="w-full p-3 border rounded-lg" required>
-            <input id="profileLocation" placeholder="Location ya biashara" class="w-full p-3 border rounded-lg">
-            <input id="profileType" placeholder="Aina ya biashara" class="w-full p-3 border rounded-lg">
-            <input id="profileHours" placeholder="Saa za kazi" class="w-full p-3 border rounded-lg">
-            <textarea id="profileDescription" placeholder="Maelezo ya biashara" class="w-full p-3 border rounded-lg h-24"></textarea>
-            <input id="profileLipa" placeholder="Lipa Namba" class="w-full p-3 border rounded-lg">
-            <input id="profileBank" placeholder="Akaunti ya benki" class="w-full p-3 border rounded-lg">
-            <input id="profilePaymentPhone" placeholder="Simu ya malipo" class="w-full p-3 border rounded-lg">
-            <button class="w-full bg-blue-900 text-white py-3 rounded-lg font-bold">Hifadhi Profile</button>
+
+            <input
+              id="profileBusiness"
+              placeholder="Jina la biashara"
+              class="w-full p-3 border rounded-lg"
+              required>
+
+            <input
+              id="profilePhone"
+              placeholder="Namba ya simu"
+              class="w-full p-3 border rounded-lg"
+              required>
+
+            <input
+              id="profileLocation"
+              placeholder="Location ya biashara"
+              class="w-full p-3 border rounded-lg">
+
+            <input
+              id="profileType"
+              placeholder="Aina ya biashara"
+              class="w-full p-3 border rounded-lg">
+
+            <input
+              id="profileHours"
+              placeholder="Saa za kazi"
+              class="w-full p-3 border rounded-lg">
+
+            <textarea
+              id="profileDescription"
+              placeholder="Maelezo ya biashara"
+              class="w-full p-3 border rounded-lg h-24"></textarea>
+
+            <input
+              id="profileLipa"
+              placeholder="Lipa Namba"
+              class="w-full p-3 border rounded-lg">
+
+            <input
+              id="profileBank"
+              placeholder="Akaunti ya benki"
+              class="w-full p-3 border rounded-lg">
+
+            <input
+              id="profilePaymentPhone"
+              placeholder="Simu ya malipo"
+              class="w-full p-3 border rounded-lg">
+
+            <button
+              class="w-full bg-blue-900 text-white py-3 rounded-lg font-bold">
+              Hifadhi Profile
+            </button>
+
           </form>
+
         </div>
+
       </aside>
 
+
+      <!-- RIGHT -->
       <div class="lg:col-span-2 space-y-6">
+
+
+        <!-- PRODUCTS -->
         <div class="bg-white rounded-2xl shadow p-5">
-          <div class="flex items-center justify-between gap-3 mb-4"><h2 class="font-bold text-lg">Product Management</h2><button id="cancelEdit" class="hidden text-sm px-3 py-2 bg-slate-100 rounded-lg">Cancel Edit</button></div>
+
+          <div class="flex items-center justify-between gap-3 mb-4">
+
+            <h2 class="font-bold text-lg">
+              Product Management
+            </h2>
+
+            <button
+              id="cancelEdit"
+              class="hidden text-sm px-3 py-2 bg-slate-100 rounded-lg">
+              Cancel Edit
+            </button>
+
+          </div>
+
+
           <form id="productForm" class="space-y-3">
+
             <input type="hidden" id="productId">
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input id="productName" placeholder="Jina la bidhaa" required class="w-full p-3 border rounded-lg">
-              <input id="productCategory" placeholder="Category" class="w-full p-3 border rounded-lg">
-              <input id="wholesalePrice" type="number" min="0" step="0.01" placeholder="Wholesale price (TSH)" class="w-full p-3 border rounded-lg">
-              <input id="retailPrice" type="number" min="0" step="0.01" placeholder="Retail price (TSH)" class="w-full p-3 border rounded-lg">
-              <input id="stockQuantity" type="number" min="0" step="1" value="0" placeholder="Stock quantity" class="w-full p-3 border rounded-lg">
-              <select id="productStatus" class="w-full p-3 border rounded-lg"><option value="IPO">IPO</option><option value="IMEISHA">IMEISHA</option></select>
+
+              <input
+                id="productName"
+                placeholder="Jina la bidhaa"
+                required
+                class="w-full p-3 border rounded-lg">
+
+              <input
+                id="productCategory"
+                placeholder="Category"
+                class="w-full p-3 border rounded-lg">
+
+              <input
+                id="wholesalePrice"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Wholesale price (TSH)"
+                class="w-full p-3 border rounded-lg">
+
+              <input
+                id="retailPrice"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Retail price (TSH)"
+                class="w-full p-3 border rounded-lg">
+
+              <input
+                id="stockQuantity"
+                type="number"
+                min="0"
+                step="1"
+                value="0"
+                placeholder="Stock quantity"
+                class="w-full p-3 border rounded-lg">
+
+              <select
+                id="productStatus"
+                class="w-full p-3 border rounded-lg">
+
+                <option value="IPO">
+                  IPO
+                </option>
+
+                <option value="IMEISHA">
+                  IMEISHA
+                </option>
+
+              </select>
+
             </div>
-            <textarea id="productDescription" placeholder="Maelezo ya bidhaa" class="w-full p-3 border rounded-lg h-24"></textarea>
-            <div><label class="text-sm font-semibold">Picha ya bidhaa</label><input id="productImage" type="file" accept="image/*" class="mt-1 w-full p-2 border rounded-lg"></div>
-            <img id="imagePreview" class="hidden w-28 h-28 object-cover rounded-lg border" alt="Product preview">
-            <button id="productSubmit" class="bg-blue-900 text-white px-5 py-3 rounded-lg font-bold">Hifadhi Bidhaa</button>
+
+
+            <textarea
+              id="productDescription"
+              placeholder="Maelezo ya bidhaa"
+              class="w-full p-3 border rounded-lg h-24"></textarea>
+
+
+            <div>
+
+              <label class="text-sm font-semibold">
+                Picha ya bidhaa
+              </label>
+
+              <input
+                id="productImage"
+                type="file"
+                accept="image/*"
+                class="mt-1 w-full p-2 border rounded-lg">
+
+            </div>
+
+
+            <img
+              id="imagePreview"
+              class="hidden w-28 h-28 object-cover rounded-lg border"
+              alt="Product preview">
+
+
+            <button
+              id="productSubmit"
+              class="bg-blue-900 text-white px-5 py-3 rounded-lg font-bold">
+              Hifadhi Bidhaa
+            </button>
+
           </form>
+
         </div>
 
+
+        <!-- PRODUCT LIST -->
         <div class="bg-white rounded-2xl shadow p-5">
-          <h2 class="font-bold text-lg mb-4">Bidhaa Zako</h2>
-          <div id="productsList" class="space-y-3"></div>
+
+          <h2 class="font-bold text-lg mb-4">
+            Bidhaa Zako
+          </h2>
+
+          <div
+            id="productsList"
+            class="space-y-3">
+          </div>
+
         </div>
 
+
+        <!-- CUSTOMERS -->
         <div class="bg-white rounded-2xl shadow p-5">
-          <h2 class="font-bold text-lg mb-4">AI Sales Assistant</h2>
-          <div id="chatBox" class="chat-scroll space-y-3 border rounded-xl p-3 bg-slate-50 mb-3"></div>
-          <form id="chatForm" class="flex gap-2"><input id="chatInput" required placeholder="Andika ujumbe wa mteja..." class="flex-1 p-3 border rounded-lg"><button id="chatBtn" class="bg-green-600 text-white px-5 rounded-lg font-bold">Tuma</button></form>
+
+          <div class="flex items-center justify-between gap-3 mb-4">
+
+            <div>
+              <h2 class="font-bold text-lg">
+                Customers
+              </h2>
+
+              <p class="text-sm text-slate-500">
+                Wateja waliowasiliana na AI yako
+              </p>
+            </div>
+
+            <button
+              id="refreshCustomers"
+              class="text-sm px-3 py-2 bg-blue-50 text-blue-800 rounded-lg">
+              Refresh
+            </button>
+
+          </div>
+
+
+          <!-- CUSTOMER SEARCH -->
+          <input
+            id="customerSearch"
+            placeholder="Tafuta customer kwa jina, simu au email..."
+            class="w-full p-3 border rounded-lg mb-4">
+
+
+          <div
+            id="customersList"
+            class="space-y-3">
+          </div>
+
         </div>
+
+
+        <!-- AI CHAT -->
+        <div class="bg-white rounded-2xl shadow p-5">
+
+          <h2 class="font-bold text-lg mb-4">
+            AI Sales Assistant
+          </h2>
+
+          <div
+            id="chatBox"
+            class="chat-scroll space-y-3 border rounded-xl p-3 bg-slate-50 mb-3">
+          </div>
+
+
+          <form
+            id="chatForm"
+            class="flex gap-2">
+
+            <input
+              id="chatInput"
+              required
+              placeholder="Andika ujumbe wa mteja..."
+              class="flex-1 p-3 border rounded-lg">
+
+            <button
+              id="chatBtn"
+              class="bg-green-600 text-white px-5 rounded-lg font-bold">
+              Tuma
+            </button>
+
+          </form>
+
+        </div>
+
       </div>
+
     </div>
+
   </section>
+
 </main>
 
+
+<!-- CUSTOMER CONVERSATION MODAL -->
+<div
+  id="conversationModal"
+  class="hidden fixed inset-0 bg-black/50 z-50 p-4">
+
+  <div
+    class="bg-white max-w-2xl mx-auto mt-8 rounded-2xl shadow-xl overflow-hidden">
+
+    <div
+      class="p-4 border-b flex items-center justify-between gap-3">
+
+      <div>
+        <h2
+          id="conversationTitle"
+          class="font-bold text-lg">
+          Mazungumzo
+        </h2>
+
+        <p
+          id="conversationSubtitle"
+          class="text-sm text-slate-500">
+        </p>
+      </div>
+
+      <button
+        id="closeConversation"
+        class="bg-slate-100 px-3 py-2 rounded-lg">
+        Funga
+      </button>
+
+    </div>
+
+
+    <div
+      id="conversationBody"
+      class="p-4 space-y-3 max-h-[70vh] overflow-auto">
+
+    </div>
+
+  </div>
+
+</div>
+
+
 <script>
-const API_URL = "https://ai-sales-assistant-api-07y0.onrender.com";
-let token = localStorage.getItem("salesai_token") || "";
+
+const API_URL =
+  "https://ai-sales-assistant-api-07y0.onrender.com";
+
+let token =
+  localStorage.getItem("salesai_token") || "";
+
 let merchant = null;
+
+let customers = [];
+
 let chatHistory = [];
 
-const $ = id => document.getElementById(id);
-function showMessage(id, text, ok=false){ const el=$(id); el.textContent=text; el.className=`mb-4 p-3 rounded-lg text-sm ${ok?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}`; }
-function clearMessage(id){ $(id).className="hidden"; }
-function setBusy(btn,busy,text){ btn.disabled=busy; btn.textContent=busy?text:btn.dataset.normal; }
 
-async function api(path, options={}){
-  const headers = {...(options.headers||{})};
-  if(options.body && !(options.body instanceof FormData)) headers["Content-Type"]="application/json";
-  if(token) headers.Authorization=`Bearer ${token}`;
+const $ = id =>
+  document.getElementById(id);
+
+
+/* =========================
+   MESSAGE
+========================= */
+
+function showMessage(id,text,ok=false){
+
+  const el = $(id);
+
+  el.textContent = text;
+
+  el.className =
+    `mb-4 p-3 rounded-lg text-sm ${
+      ok
+      ? "bg-green-100 text-green-800"
+      : "bg-red-100 text-red-800"
+    }`;
+
+}
+
+
+function clearMessage(id){
+
+  $(id).className = "hidden";
+
+}
+
+
+function setBusy(btn,busy,text){
+
+  btn.disabled = busy;
+
+  btn.textContent =
+    busy
+    ? text
+    : btn.dataset.normal;
+
+}
+
+
+/* =========================
+   API
+========================= */
+
+async function api(path,options={}){
+
+  const headers = {
+    ...(options.headers || {})
+  };
+
+
+  if(
+    options.body &&
+    !(options.body instanceof FormData)
+  ){
+
+    headers["Content-Type"] =
+      "application/json";
+
+  }
+
+
+  if(token){
+
+    headers.Authorization =
+      `Bearer ${token}`;
+
+  }
+
+
   let response;
-  try { response=await fetch(API_URL+path,{...options,headers}); }
-  catch(e){ throw new Error("Imeshindwa kuwasiliana na Server. Hakikisha internet ipo na Render server iko hewani."); }
-  const type=response.headers.get("content-type")||"";
-  const data=type.includes("application/json")?await response.json():await response.text();
-  if(!response.ok){ throw new Error(typeof data==='string'?data:(data.detail||data.message||"Kuna tatizo kwenye server.")); }
-  return data;
-}
 
-function showAuth(){ $("authView").classList.remove("hidden"); $("appView").classList.add("hidden"); $("topActions").classList.add("hidden"); }
-function showApp(){ $("authView").classList.add("hidden"); $("appView").classList.remove("hidden"); $("topActions").classList.remove("hidden"); }
-function fillProfile(){
-  if(!merchant)return;
-  $("accountBusiness").textContent=merchant.business_name||""; $("accountEmail").textContent=merchant.email||""; $("accountStatus").textContent=merchant.subscription_status||"Active";
-  $("profileBusiness").value=merchant.business_name||""; $("profilePhone").value=merchant.phone_number||""; $("profileLocation").value=merchant.business_location||""; $("profileType").value=merchant.business_type||""; $("profileHours").value=merchant.business_hours||""; $("profileDescription").value=merchant.business_description||"";
-  const p=merchant.payment_info||{}; $("profileLipa").value=p.lipa_namba||""; $("profileBank").value=p.bank_account||""; $("profilePaymentPhone").value=p.phone_payment||"";
-}
-
-function renderProducts(products){
-  const list=$("productsList"); list.innerHTML="";
-  if(!products.length){ list.innerHTML='<p class="text-sm text-slate-500">Bado hujaongeza bidhaa.</p>'; return; }
-  products.forEach(p=>{
-    const price=p.retail_price??p.wholesale_price; const card=document.createElement("div"); card.className="border rounded-xl p-3 flex gap-3 items-start";
-    card.innerHTML=`<div class="w-20 h-20 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">${p.image_url?`<img src="${p.image_url}" class="w-full h-full object-cover" alt="">`:''}</div><div class="flex-1 min-w-0"><div class="flex justify-between gap-2"><b>${escapeHtml(p.product_name)}</b><span class="text-xs px-2 py-1 rounded ${p.status==='IPO'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">${escapeHtml(p.status)}</span></div><p class="text-sm text-slate-500">${escapeHtml(p.category||'')}</p><p class="font-semibold mt-1">${price==null?'Bei haijawekwa':'TSH '+Number(price).toLocaleString()}</p><p class="text-sm mt-1">Stock: ${p.stock_quantity??0}</p><p class="text-sm text-slate-600 mt-1">${escapeHtml(p.description||'')}</p><div class="flex gap-2 mt-2"><button data-edit="${p.product_id}" class="editBtn text-sm px-3 py-2 bg-blue-50 text-blue-800 rounded-lg">Edit</button><button data-delete="${p.product_id}" class="deleteBtn text-sm px-3 py-2 bg-red-50 text-red-800 rounded-lg">Delete</button></div></div>`;
-    list.appendChild(card);
-  });
-  document.querySelectorAll('.editBtn').forEach(b=>b.onclick=()=>startEdit(b.dataset.edit));
-  document.querySelectorAll('.deleteBtn').forEach(b=>b.onclick=()=>deleteProduct(b.dataset.delete));
-}
-function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-async function loadMe(){ merchant=await api('/me'); fillProfile(); renderProducts(merchant.products||[]); showApp(); }
-
-$("loginTab").onclick=()=>{ $("loginForm").classList.remove('hidden'); $("signupForm").classList.add('hidden'); $("loginTab").className='flex-1 bg-blue-900 text-white rounded-lg py-2 font-semibold'; $("signupTab").className='flex-1 bg-slate-100 rounded-lg py-2 font-semibold'; clearMessage('authMessage'); };
-$("signupTab").onclick=()=>{ $("signupForm").classList.remove('hidden'); $("loginForm").classList.add('hidden'); $("signupTab").className='flex-1 bg-blue-900 text-white rounded-lg py-2 font-semibold'; $("loginTab").className='flex-1 bg-slate-100 rounded-lg py-2 font-semibold'; clearMessage('authMessage'); };
-
-$("loginBtn").dataset.normal="Login"; $("signupBtn").dataset.normal="Sign Up";
-$("loginForm").onsubmit=async e=>{e.preventDefault();clearMessage('authMessage');const b=$("loginBtn");setBusy(b,true,'Inafanya login...');try{const d=await api('/auth/login',{method:'POST',body:JSON.stringify({email:$("loginEmail").value,password:$("loginPassword").value})});token=d.token;localStorage.setItem('salesai_token',token);merchant=d.merchant;fillProfile();renderProducts(merchant.products||[]);showApp();}catch(err){showMessage('authMessage',err.message);}finally{setBusy(b,false,'');}};
-$("signupForm").onsubmit=async e=>{e.preventDefault();clearMessage('authMessage');const b=$("signupBtn");setBusy(b,true,'Inasajili...');try{const d=await api('/auth/signup',{method:'POST',body:JSON.stringify({business_name:$("signupBusiness").value,email:$("signupEmail").value,phone_number:$("signupPhone").value,password:$("signupPassword").value})});token=d.token;localStorage.setItem('salesai_token',token);merchant=d.merchant;fillProfile();renderProducts(merchant.products||[]);showApp();}catch(err){showMessage('authMessage',err.message);}finally{setBusy(b,false,'');}};
-
-$("logoutBtn").onclick=()=>{token='';merchant=null;chatHistory=[];localStorage.removeItem('salesai_token');showAuth();};
-$("profileForm").onsubmit=async e=>{e.preventDefault();try{merchant=await api('/profile',{method:'PUT',body:JSON.stringify({business_name:$("profileBusiness").value,phone_number:$("profilePhone").value,business_location:$("profileLocation").value,business_type:$("profileType").value,business_hours:$("profileHours").value,business_description:$("profileDescription").value,lipa_namba:$("profileLipa").value,bank_account:$("profileBank").value,phone_payment:$("profilePaymentPhone").value})});fillProfile();showMessage('pageMessage','Profile imehifadhiwa.',true);setTimeout(()=>clearMessage('pageMessage'),2500);}catch(err){showMessage('pageMessage',err.message);}};
-
-async function fileToDataUrl(file){if(!file)return null;if(file.size>2*1024*1024)throw new Error('Picha iwe chini ya 2MB.');return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('Imeshindikana kusoma picha.'));r.readAsDataURL(file);});}
-$("productImage").onchange=async()=>{try{const file=$("productImage").files[0];if(!file){$("imagePreview").classList.add('hidden');return;}const url=await fileToDataUrl(file);$("imagePreview").src=url;$("imagePreview").classList.remove('hidden');}catch(err){showMessage('pageMessage',err.message);$("productImage").value='';}};
-$("productForm").onsubmit=async e=>{e.preventDefault();try{const id=$("productId").value;const imageFile=$("productImage").files[0];const current=merchant.products.find(p=>p.product_id===id);const image=imageFile?await fileToDataUrl(imageFile):(current?.image_url||null);const body={product_name:$("productName").value,category:$("productCategory").value||null,description:$("productDescription").value,wholesale_price:$("wholesalePrice").value===''?null:Number($("wholesalePrice").value),retail_price:$("retailPrice").value===''?null:Number($("retailPrice").value),stock_quantity:Number($("stockQuantity").value||0),status:$("productStatus").value,image_url:image};if(!body.retail_price&&!body.wholesale_price)throw new Error('Weka wholesale au retail price.');const d=await api(id?`/products/${encodeURIComponent(id)}`:'/products',{method:id?'PUT':'POST',body:JSON.stringify(body)});if(id){const i=merchant.products.findIndex(p=>p.product_id===id);merchant.products[i]=d;}else merchant.products.push(d);renderProducts(merchant.products);resetProductForm();showMessage('pageMessage','Bidhaa imehifadhiwa.',true);setTimeout(()=>clearMessage('pageMessage'),2500);}catch(err){showMessage('pageMessage',err.message);}};
-function resetProductForm(){$("productForm").reset();$("productId").value='';$("stockQuantity").value=0;$("cancelEdit").classList.add('hidden');$("productSubmit").textContent='Hifadhi Bidhaa';$("imagePreview").classList.add('hidden');$("imagePreview").src='';}
-function startEdit(id){const p=merchant.products.find(x=>x.product_id===id);if(!p)return;$("productId").value=p.product_id;$("productName").value=p.product_name||'';$("productCategory").value=p.category||'';$("wholesalePrice").value=p.wholesale_price??'';$("retailPrice").value=p.retail_price??'';$("stockQuantity").value=p.stock_quantity??0;$("productStatus").value=p.status||'IPO';$("productDescription").value=p.description||'';$("productImage").value='';if(p.image_url){$("imagePreview").src=p.image_url;$("imagePreview").classList.remove('hidden');}$("cancelEdit").classList.remove('hidden');$("productSubmit").textContent='Update Bidhaa';window.scrollTo({top:document.querySelector('#productForm').getBoundingClientRect().top+window.scrollY-80,behavior:'smooth'});}
-$("cancelEdit").onclick=resetProductForm;
-async function deleteProduct(id){if(!confirm('Una uhakika unataka kufuta bidhaa hii?'))return;try{await api(`/products/${encodeURIComponent(id)}`,{method:'DELETE'});merchant.products=merchant.products.filter(p=>p.product_id!==id);renderProducts(merchant.products);showMessage('pageMessage','Bidhaa imefutwa.',true);}catch(err){showMessage('pageMessage',err.message);}}
-
-function addChat(role,text){const div=document.createElement('div');div.className=role==='user'?'text-right':'text-left';div.innerHTML=`<div class="inline-block max-w-[90%] rounded-xl p-3 ${role==='user'?'bg-blue-900 text-white':'bg-white border'}"><div class="text-xs opacity-70 mb-1">${role==='user'?'Wewe':'AI'}</div><div class="msg">${escapeHtml(text)}</div></div>`;$("chatBox").appendChild(div);$("chatBox").scrollTop=$("chatBox").scrollHeight;return div.querySelector('.msg');}
-$("chatForm").onsubmit=async e=>{
-  e.preventDefault();
-
-  const input=$("chatInput");
-  const text=input.value.trim();
-  if(!text)return;
-
-  input.value="";
-  addChat("user",text);
-
-  const aiMsg=addChat("ai","");
-  const button=$("chatBtn");
-  button.disabled=true;
-  button.textContent="Inajibu...";
 
   try{
-    const recentHistory=chatHistory.slice(-10).map(item=>{
-      const speaker=item.role==="user"?"Mteja":"AI";
-      return `${speaker}: ${item.text}`;
-    }).join("\n");
 
-    const message=recentHistory
-      ? `Mazungumzo ya awali:\n${recentHistory}\n\nMteja mpya: ${text}`
-      : text;
+    response =
+      await fetch(
+        API_URL + path,
+        {
+          ...options,
+          headers
+        }
+      );
 
-    const response=await fetch(API_URL+"/chat/stream",{
-      method:"POST",
-      headers:{
-        "Content-Type":"application/json",
-        Authorization:`Bearer ${token}`
-      },
-      body:JSON.stringify({message})
-    });
+  }catch(e){
 
-    if(!response.ok){
-      let err="AI imeshindwa kujibu.";
-      try{
-        const data=await response.json();
-        err=data.detail||err;
-      }catch(_){}
-      throw new Error(err);
-    }
-
-    if(!response.body){
-      throw new Error("Server haijarudisha stream ya AI.");
-    }
-
-    const reader=response.body.getReader();
-    const decoder=new TextDecoder();
-    let result="";
-
-    while(true){
-      const {done,value}=await reader.read();
-      if(done)break;
-
-      result+=decoder.decode(value,{stream:true});
-      aiMsg.textContent=result;
-      $("chatBox").scrollTop=$("chatBox").scrollHeight;
-    }
-
-    result+=decoder.decode();
-
-    if(!result.trim()){
-      result="Samahani, AI haikurudisha jibu.";
-      aiMsg.textContent=result;
-    }
-
-    chatHistory.push(
-      {role:"user",text},
-      {role:"assistant",text:result}
+    throw new Error(
+      "Imeshindwa kuwasiliana na Server. Hakikisha internet ipo na Render server iko hewani."
     );
-  }catch(err){
-    aiMsg.textContent="Samahani: "+err.message;
-  }finally{
-    button.disabled=false;
-    button.textContent="Tuma";
+
   }
+
+
+  const type =
+    response.headers.get(
+      "content-type"
+    ) || "";
+
+
+  const data =
+    type.includes("application/json")
+    ? await response.json()
+    : await response.text();
+
+
+  if(!response.ok){
+
+    throw new Error(
+      typeof data === "string"
+      ? data
+      : (
+          data.detail ||
+          data.message ||
+          "Kuna tatizo kwenye server."
+        )
+    );
+
+  }
+
+
+  return data;
+
+}
+
+
+/* =========================
+   AUTH VIEW
+========================= */
+
+function showAuth(){
+
+  $("authView")
+    .classList
+    .remove("hidden");
+
+  $("appView")
+    .classList
+    .add("hidden");
+
+  $("topActions")
+    .classList
+    .add("hidden");
+
+}
+
+
+function showApp(){
+
+  $("authView")
+    .classList
+    .add("hidden");
+
+  $("appView")
+    .classList
+    .remove("hidden");
+
+  $("topActions")
+    .classList
+    .remove("hidden");
+
+}
+
+
+/* =========================
+   ESCAPE HTML
+========================= */
+
+function escapeHtml(s){
+
+  return String(s ?? "")
+    .replace(
+      /[&<>'"]/g,
+      c => ({
+        "&":"&amp;",
+        "<":"&lt;",
+        ">":"&gt;",
+        "'":"&#39;",
+        '"':"&quot;"
+      }[c])
+    );
+
+}
+
+
+/* =========================
+   PROFILE
+========================= */
+
+function fillProfile(){
+
+  if(!merchant)return;
+
+
+  $("accountBusiness").textContent =
+    merchant.business_name || "";
+
+
+  $("accountEmail").textContent =
+    merchant.email || "";
+
+
+  $("accountStatus").textContent =
+    merchant.subscription_status ||
+    "Active";
+
+
+  $("profileBusiness").value =
+    merchant.business_name || "";
+
+
+  $("profilePhone").value =
+    merchant.phone_number || "";
+
+
+  $("profileLocation").value =
+    merchant.business_location || "";
+
+
+  $("profileType").value =
+    merchant.business_type || "";
+
+
+  $("profileHours").value =
+    merchant.business_hours || "";
+
+
+  $("profileDescription").value =
+    merchant.business_description || "";
+
+
+  const p =
+    merchant.payment_info || {};
+
+
+  $("profileLipa").value =
+    p.lipa_namba || "";
+
+
+  $("profileBank").value =
+    p.bank_account || "";
+
+
+  $("profilePaymentPhone").value =
+    p.phone_payment || "";
+
+}
+
+
+/* =========================
+   METRICS
+========================= */
+
+function updateMetrics(){
+
+  const products =
+    merchant?.products || [];
+
+
+  $("metricProducts").textContent =
+    products.length;
+
+
+  const available =
+    products.filter(
+      p => p.status === "IPO"
+    ).length;
+
+
+  $("metricAvailable").textContent =
+    available;
+
+
+  const totalStock =
+    products.reduce(
+      (sum,p) =>
+        sum + Number(
+          p.stock_quantity || 0
+        ),
+      0
+    );
+
+
+  $("metricStock").textContent =
+    totalStock;
+
+
+  $("metricCustomers").textContent =
+    customers.length;
+
+}
+
+
+/* =========================
+   PRODUCTS
+========================= */
+
+function renderProducts(products){
+
+  const list =
+    $("productsList");
+
+  list.innerHTML = "";
+
+
+  if(!products.length){
+
+    list.innerHTML =
+      '<p class="text-sm text-slate-500">Bado hujaongeza bidhaa.</p>';
+
+    updateMetrics();
+
+    return;
+
+  }
+
+
+  products.forEach(p => {
+
+    const price =
+      p.retail_price ??
+      p.wholesale_price;
+
+
+    const card =
+      document.createElement("div");
+
+
+    card.className =
+      "border rounded-xl p-3 flex gap-3 items-start";
+
+
+    card.innerHTML = `
+
+      <div
+        class="w-20 h-20 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
+
+        ${
+          p.image_url
+          ?
+          `<img
+            src="${p.image_url}"
+            class="w-full h-full object-cover"
+            alt="">`
+          :
+          ""
+        }
+
+      </div>
+
+
+      <div class="flex-1 min-w-0">
+
+        <div class="flex justify-between gap-2">
+
+          <b>
+            ${escapeHtml(p.product_name)}
+          </b>
+
+          <span
+            class="text-xs px-2 py-1 rounded ${
+              p.status === "IPO"
+              ? "bg-green-100 text-green-700"
+              : "bg-red-100 text-red-700"
+            }">
+
+            ${escapeHtml(p.status)}
+
+          </span>
+
+        </div>
+
+
+        <p class="text-sm text-slate-500">
+
+          ${escapeHtml(p.category || "")}
+
+        </p>
+
+
+        <p class="font-semibold mt-1">
+
+          ${
+            price == null
+            ? "Bei haijawekwa"
+            : "TSH " +
+              Number(price)
+              .toLocaleString()
+          }
+
+        </p>
+
+
+        <p class="text-sm mt-1">
+
+          Stock:
+          ${p.stock_quantity ?? 0}
+
+        </p>
+
+
+        <p class="text-sm text-slate-600 mt-1">
+
+          ${escapeHtml(p.description || "")}
+
+        </p>
+
+
+        <div class="flex gap-2 mt-2">
+
+          <button
+            data-edit="${p.product_id}"
+            class="editBtn text-sm px-3 py-2 bg-blue-50 text-blue-800 rounded-lg">
+
+            Edit
+
+          </button>
+
+
+          <button
+            data-delete="${p.product_id}"
+            class="deleteBtn text-sm px-3 py-2 bg-red-50 text-red-800 rounded-lg">
+
+            Delete
+
+          </button>
+
+        </div>
+
+      </div>
+
+    `;
+
+
+    list.appendChild(card);
+
+  });
+
+
+  document
+    .querySelectorAll(".editBtn")
+    .forEach(
+      b =>
+        b.onclick =
+          () =>
+            startEdit(
+              b.dataset.edit
+            )
+    );
+
+
+  document
+    .querySelectorAll(".deleteBtn")
+    .forEach(
+      b =>
+        b.onclick =
+          () =>
+            deleteProduct(
+              b.dataset.delete
+            )
+    );
+
+
+  updateMetrics();
+
+}
+
+
+/* =========================
+   LOAD ME
+========================= */
+
+async function loadMe(){
+
+  merchant =
+    await api("/me");
+
+
+  fillProfile();
+
+
+  renderProducts(
+    merchant.products || []
+  );
+
+
+  await loadCustomers();
+
+
+  showApp();
+
+}
+
+
+/* =========================
+   LOGIN / SIGNUP TABS
+========================= */
+
+$("loginTab").onclick = () => {
+
+  $("loginForm")
+    .classList
+    .remove("hidden");
+
+  $("signupForm")
+    .classList
+    .add("hidden");
+
+
+  $("loginTab").className =
+    "flex-1 bg-blue-900 text-white rounded-lg py-2 font-semibold";
+
+
+  $("signupTab").className =
+    "flex-1 bg-slate-100 rounded-lg py-2 font-semibold";
+
+
+  clearMessage("authMessage");
+
 };
 
-(async()=>{if(token){try{await loadMe();}catch(e){localStorage.removeItem('salesai_token');token='';showAuth();}}else showAuth();})();
+
+$("signupTab").onclick = () => {
+
+  $("signupForm")
+    .classList
+    .remove("hidden");
+
+  $("loginForm")
+    .classList
+    .add("hidden");
+
+
+  $("signupTab").className =
+    "flex-1 bg-blue-900 text-white rounded-lg py-2 font-semibold";
+
+
+  $("loginTab").className =
+    "flex-1 bg-slate-100 rounded-lg py-2 font-semibold";
+
+
+  clearMessage("authMessage");
+
+};
+
+
+/* =========================
+   LOGIN
+========================= */
+
+$("loginBtn").dataset.normal =
+  "Login";
+
+
+$("loginForm").onsubmit =
+  async e => {
+
+    e.preventDefault();
+
+    clearMessage("authMessage");
+
+
+    const b =
+      $("loginBtn");
+
+
+    setBusy(
+      b,
+      true,
+      "Inafanya login..."
+    );
+
+
+    try{
+
+      const d =
+        await api(
+          "/auth/login",
+          {
+            method:"POST",
+            body:JSON.stringify({
+              email:
+                $("loginEmail").value,
+
+              password:
+                $("loginPassword").value
+            })
+          }
+        );
+
+
+      token =
+        d.token;
+
+
+      localStorage.setItem(
+        "salesai_token",
+        token
+      );
+
+
+      merchant =
+        d.merchant;
+
+
+      fillProfile();
+
+
+      renderProducts(
+        merchant.products || []
+      );
+
+
+      await loadCustomers();
+
+
+      showApp();
+
+
+    }catch(err){
+
+      showMessage(
+        "authMessage",
+        err.message
+      );
+
+    }finally{
+
+      setBusy(
+        b,
+        false,
+        ""
+      );
+
+    }
+
+  };
+
+
+/* =========================
+   SIGNUP
+========================= */
+
+$("signupBtn").dataset.normal =
+  "Sign Up";
+
+
+$("signupForm").onsubmit =
+  async e => {
+
+    e.preventDefault();
+
+    clearMessage("authMessage");
+
+
+    const b =
+      $("signupBtn");
+
+
+    setBusy(
+      b,
+      true,
+      "Inasajili..."
+    );
+
+
+    try{
+
+      const d =
+        await api(
+          "/auth/signup",
+          {
+            method:"POST",
+            body:JSON.stringify({
+
+              business_name:
+                $("signupBusiness").value,
+
+              email:
+                $("signupEmail").value,
+
+              phone_number:
+                $("signupPhone").value,
+
+              password:
+                $("signupPassword").value
+
+            })
+          }
+        );
+
+
+      token =
+        d.token;
+
+
+      localStorage.setItem(
+        "salesai_token",
+        token
+      );
+
+
+      merchant =
+        d.merchant;
+
+
+      fillProfile();
+
+
+      renderProducts(
+        merchant.products || []
+      );
+
+
+      await loadCustomers();
+
+
+      showApp();
+
+
+    }catch(err){
+
+      showMessage(
+        "authMessage",
+        err.message
+      );
+
+    }finally{
+
+      setBusy(
+        b,
+        false,
+        ""
+      );
+
+    }
+
+  };
+
+
+/* =========================
+   LOGOUT
+========================= */
+
+$("logoutBtn").onclick = () => {
+
+  token = "";
+
+  merchant = null;
+
+  customers = [];
+
+  chatHistory = [];
+
+
+  localStorage.removeItem(
+    "salesai_token"
+  );
+
+
+  $("chatBox").innerHTML = "";
+
+
+  showAuth();
+
+};
+
+
+/* =========================
+   PROFILE SAVE
+========================= */
+
+$("profileForm").onsubmit =
+  async e => {
+
+    e.preventDefault();
+
+
+    try{
+
+      merchant =
+        await api(
+          "/profile",
+          {
+            method:"PUT",
+            body:JSON.stringify({
+
+              business_name:
+                $("profileBusiness").value,
+
+              phone_number:
+                $("profilePhone").value,
+
+              business_location:
+                $("profileLocation").value,
+
+              business_type:
+                $("profileType").value,
+
+              business_hours:
+                $("profileHours").value,
+
+              business_description:
+                $("profileDescription").value,
+
+              lipa_namba:
+                $("profileLipa").value,
+
+              bank_account:
+                $("profileBank").value,
+
+              phone_payment:
+                $("profilePaymentPhone").value
+
+            })
+          }
+        );
+
+
+      fillProfile();
+
+
+      showMessage(
+        "pageMessage",
+        "Profile imehifadhiwa.",
+        true
+      );
+
+
+      setTimeout(
+        () =>
+          clearMessage(
+            "pageMessage"
+          ),
+        2500
+      );
+
+
+    }catch(err){
+
+      showMessage(
+        "pageMessage",
+        err.message
+      );
+
+    }
+
+  };
+
+
+/* =========================
+   IMAGE
+========================= */
+
+async function fileToDataUrl(file){
+
+  if(!file)return null;
+
+
+  if(file.size > 2 * 1024 * 1024){
+
+    throw new Error(
+      "Picha iwe chini ya 2MB."
+    );
+
+  }
+
+
+  return await new Promise(
+    (resolve,reject) => {
+
+      const r =
+        new FileReader();
+
+
+      r.onload =
+        () =>
+          resolve(r.result);
+
+
+      r.onerror =
+        () =>
+          reject(
+            new Error(
+              "Imeshindikana kusoma picha."
+            )
+          );
+
+
+      r.readAsDataURL(file);
+
+    }
+  );
+
+}
+
+
+$("productImage").onchange =
+  async () => {
+
+    try{
+
+      const file =
+        $("productImage")
+        .files[0];
+
+
+      if(!file){
+
+        $("imagePreview")
+          .classList
+          .add("hidden");
+
+        return;
+
+      }
+
+
+      const url =
+        await fileToDataUrl(file);
+
+
+      $("imagePreview").src =
+        url;
+
+
+      $("imagePreview")
+        .classList
+        .remove("hidden");
+
+
+    }catch(err){
+
+      showMessage(
+        "pageMessage",
+        err.message
+      );
+
+
+      $("productImage").value =
+        "";
+
+    }
+
+  };
+
+
+/* =========================
+   PRODUCT SAVE
+========================= */
+
+$("productForm").onsubmit =
+  async e => {
+
+    e.preventDefault();
+
+
+    try{
+
+      const id =
+        $("productId").value;
+
+
+      const imageFile =
+        $("productImage")
+        .files[0];
+
+
+      const current =
+        merchant.products.find(
+          p =>
+            p.product_id === id
+        );
+
+
+      const image =
+        imageFile
+        ?
+        await fileToDataUrl(
+          imageFile
+        )
+        :
+        (
+          current?.image_url ||
+          null
+        );
+
+
+      const body = {
+
+        product_name:
+          $("productName").value,
+
+        category:
+          $("productCategory").value ||
+          null,
+
+        description:
+          $("productDescription").value,
+
+        wholesale_price:
+          $("wholesalePrice").value === ""
+          ?
+          null
+          :
+          Number(
+            $("wholesalePrice").value
+          ),
+
+        retail_price:
+          $("retailPrice").value === ""
+          ?
+          null
+          :
+          Number(
+            $("retailPrice").value
+          ),
+
+        stock_quantity:
+          Number(
+            $("stockQuantity").value || 0
+          ),
+
+        status:
+          $("productStatus").value,
+
+        image_url:
+          image
+
+      };
+
+
+      if(
+        !body.retail_price &&
+        !body.wholesale_price
+      ){
+
+        throw new Error(
+          "Weka wholesale au retail price."
+        );
+
+      }
+
+
+      const d =
+        await api(
+          id
+          ?
+          `/products/${encodeURIComponent(id)}`
+          :
+          "/products",
+          {
+            method:
+              id
+              ?
+              "PUT"
+              :
+              "POST",
+
+            body:
+              JSON.stringify(body)
+          }
+        );
+
+
+      if(id){
+
+        const i =
+          merchant.products.findIndex(
+            p =>
+              p.product_id === id
+          );
+
+
+        merchant.products[i] =
+          d;
+
+      }else{
+
+        merchant.products.push(d);
+
+      }
+
+
+      renderProducts(
+        merchant.products
+      );
+
+
+      resetProductForm();
+
+
+      showMessage(
+        "pageMessage",
+        "Bidhaa imehifadhiwa.",
+        true
+      );
+
+
+      setTimeout(
+        () =>
+          clearMessage(
+            "pageMessage"
+          ),
+        2500
+      );
+
+
+    }catch(err){
+
+      showMessage(
+        "pageMessage",
+        err.message
+      );
+
+    }
+
+  };
+
+
+/* =========================
+   RESET PRODUCT
+========================= */
+
+function resetProductForm(){
+
+  $("productForm").reset();
+
+  $("productId").value = "";
+
+  $("stockQuantity").value = 0;
+
+  $("cancelEdit")
+    .classList
+    .add("hidden");
+
+  $("productSubmit").textContent =
+    "Hifadhi Bidhaa";
+
+  $("imagePreview")
+    .classList
+    .add("hidden");
+
+  $("imagePreview").src = "";
+
+}
+
+
+/* =========================
+   EDIT PRODUCT
+========================= */
+
+function startEdit(id){
+
+  const p =
+    merchant.products.find(
+      x =>
+        x.product_id === id
+    );
+
+
+  if(!p)return;
+
+
+  $("productId").value =
+    p.product_id;
+
+
+  $("productName").value =
+    p.product_name || "";
+
+
+  $("productCategory").value =
+    p.category || "";
+
+
+  $("wholesalePrice").value =
+    p.wholesale_price ?? "";
+
+
+  $("retailPrice").value =
+    p.retail_price ?? "";
+
+
+  $("stockQuantity").value =
+    p.stock_quantity ?? 0;
+
+
+  $("productStatus").value =
+    p.status || "IPO";
+
+
+  $("productDescription").value =
+    p.description || "";
+
+
+  $("productImage").value =
+    "";
+
+
+  if(p.image_url){
+
+    $("imagePreview").src =
+      p.image_url;
+
+    $("imagePreview")
+      .classList
+      .remove("hidden");
+
+  }
+
+
+  $("cancelEdit")
+    .classList
+    .remove("hidden");
+
+
+  $("productSubmit").textContent =
+    "Update Bidhaa";
+
+
+  window.scrollTo({
+    top:
+      document
+        .querySelector(
+          "#productForm"
+        )
+        .getBoundingClientRect()
+        .top
+      +
+      window.scrollY
+      -
+      80,
+
+    behavior:"smooth"
+  });
+
+}
+
+
+$("cancelEdit").onclick =
+  resetProductForm;
+
+
+/* =========================
+   DELETE PRODUCT
+========================= */
+
+async function deleteProduct(id){
+
+  if(
+    !confirm(
+      "Una uhakika unataka kufuta bidhaa hii?"
+    )
+  ){
+
+    return;
+
+  }
+
+
+  try{
+
+    await api(
+      `/products/${encodeURIComponent(id)}`,
+      {
+        method:"DELETE"
+      }
+    );
+
+
+    merchant.products =
+      merchant.products.filter(
+        p =>
+          p.product_id !== id
+      );
+
+
+    renderProducts(
+      merchant.products
+    );
+
+
+    showMessage(
+      "pageMessage",
+      "Bidhaa imefutwa.",
+      true
+    );
+
+
+  }catch(err){
+
+    showMessage(
+      "pageMessage",
+      err.message
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   CUSTOMER MANAGEMENT
+========================================================= */
+
+
+/* =========================
+   FORMAT DATE
+========================= */
+
+function formatDate(value){
+
+  if(!value){
+
+    return "Haijulikani";
+
+  }
+
+
+  try{
+
+    return new Date(value)
+      .toLocaleString(
+        "sw-TZ",
+        {
+          dateStyle:"medium",
+          timeStyle:"short"
+        }
+      );
+
+  }catch(e){
+
+    return String(value);
+
+  }
+
+}
+
+
+/* =========================
+   LOAD CUSTOMERS
+========================= */
+
+async function loadCustomers(){
+
+  try{
+
+    customers =
+      await api("/customers");
+
+
+    if(!Array.isArray(customers)){
+
+      customers = [];
+
+    }
+
+
+    renderCustomers(
+      customers
+    );
+
+
+    updateMetrics();
+
+
+  }catch(err){
+
+    console.error(
+      "Customers error:",
+      err
+    );
+
+
+    $("customersList").innerHTML = `
+      <div class="border border-red-200 bg-red-50 rounded-xl p-4">
+        <p class="text-sm text-red-700">
+          Imeshindikana kupakia customers.
+        </p>
+
+        <p class="text-xs text-red-500 mt-1">
+          ${escapeHtml(err.message)}
+        </p>
+      </div>
+    `;
+
+  }
+
+}
+
+
+/* =========================
+   RENDER CUSTOMERS
+========================= */
+
+function renderCustomers(list){
+
+  const container =
+    $("customersList");
+
+
+  container.innerHTML = "";
+
+
+  if(!list.length){
+
+    container.innerHTML = `
+      <div class="text-center py-8">
+
+        <div class="text-3xl mb-2">
+          👤
+        </div>
+
+        <p class="font-semibold">
+          Bado hakuna customers
+        </p>
+
+        <p class="text-sm text-slate-500 mt-1">
+          Customers wataonekana hapa
+          baada ya kuwasiliana na AI.
+        </p>
+
+      </div>
+    `;
+
+    updateMetrics();
+
+    return;
+
+  }
+
+
+  list.forEach(customer => {
+
+    const card =
+      document.createElement("div");
+
+
+    card.className =
+      "border rounded-xl p-4";
+
+
+    const name =
+      customer.name ||
+      "Mteja";
+
+
+    const phone =
+      customer.phone_number ||
+      "";
+
+
+    const email =
+      customer.email ||
+      "";
+
+
+    const platform =
+      customer.platform ||
+      "website";
+
+
+    card.innerHTML = `
+
+      <div class="flex items-start justify-between gap-3">
+
+        <div class="min-w-0 flex-1">
+
+          <div class="flex items-center gap-2">
+
+            <div
+              class="w-10 h-10 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold flex-shrink-0">
+
+              ${escapeHtml(
+                name
+                  .trim()
+                  .charAt(0)
+                  .toUpperCase()
+                  || "M"
+              )}
+
+            </div>
+
+
+            <div class="min-w-0">
+
+              <p class="font-bold truncate">
+
+                ${escapeHtml(name)}
+
+              </p>
+
+              <p class="text-xs text-slate-500">
+
+                ${escapeHtml(platform)}
+
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <div class="mt-3 space-y-1">
+
+            ${
+              phone
+              ?
+              `
+              <p class="text-sm">
+                📞 ${escapeHtml(phone)}
+              </p>
+              `
+              :
+              ""
+            }
+
+
+            ${
+              email
+              ?
+              `
+              <p class="text-sm break-all">
+                ✉️ ${escapeHtml(email)}
+              </p>
+              `
+              :
+              ""
+            }
+
+
+            ${
+              customer.location
+              ?
+              `
+              <p class="text-sm text-slate-600">
+                📍 ${escapeHtml(customer.location)}
+              </p>
+              `
+              :
+              ""
+            }
+
+
+            <p class="text-xs text-slate-400 mt-2">
+
+              Last seen:
+              ${formatDate(
+                customer.last_seen_at
+              )}
+
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <button
+          data-customer="${escapeHtml(customer.customer_id)}"
+          class="conversationBtn flex-shrink-0 text-sm px-3 py-2 bg-blue-900 text-white rounded-lg">
+
+          Mazungumzo
+
+        </button>
+
+      </div>
+
+    `;
+
+
+    container.appendChild(card);
+
+  });
+
+
+  document
+    .querySelectorAll(
+      ".conversationBtn"
+    )
+    .forEach(btn => {
+
+      btn.onclick =
+        () =>
+          openCustomerConversations(
+            btn.dataset.customer
+          );
+
+    });
+
+
+  updateMetrics();
+
+}
+
+
+/* =========================
+   CUSTOMER SEARCH
+========================= */
+
+$("customerSearch").oninput =
+  () => {
+
+    const query =
+      $("customerSearch")
+      .value
+      .trim()
+      .toLowerCase();
+
+
+    if(!query){
+
+      renderCustomers(
+        customers
+      );
+
+      return;
+
+    }
+
+
+    const filtered =
+      customers.filter(
+        customer => {
+
+          const text =
+            [
+              customer.name,
+              customer.phone_number,
+              customer.email,
+              customer.location,
+              customer.platform
+            ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+
+
+          return text.includes(
+            query
+          );
+
+        }
+      );
+
+
+    renderCustomers(
+      filtered
+    );
+
+  };
+
+
+/* =========================
+   REFRESH CUSTOMERS
+========================= */
+
+$("refreshCustomers").onclick =
+  async () => {
+
+    const btn =
+      $("refreshCustomers");
+
+
+    btn.disabled = true;
+
+    btn.textContent =
+      "Inapakia...";
+
+
+    try{
+
+      await loadCustomers();
+
+    }finally{
+
+      btn.disabled = false;
+
+      btn.textContent =
+        "Refresh";
+
+    }
+
+  };
+
+
+/* =========================================================
+   CUSTOMER CONVERSATIONS
+========================================================= */
+
+async function openCustomerConversations(
+  customerId
+){
+
+  const customer =
+    customers.find(
+      c =>
+        String(c.customer_id) ===
+        String(customerId)
+    );
+
+
+  $("conversationModal")
+    .classList
+    .remove("hidden");
+
+
+  $("conversationBody").innerHTML = `
+    <div class="text-center py-8">
+      <p class="text-sm text-slate-500">
+        Inapakia mazungumzo...
+      </p>
+    </div>
+  `;
+
+
+  $("conversationTitle").textContent =
+    customer?.name ||
+    "Mteja";
+
+
+  $("conversationSubtitle").textContent =
+    customer?.phone_number ||
+    customer?.email ||
+    "Customer";
+
+
+  try{
+
+    const conversations =
+      await api(
+        `/customers/${encodeURIComponent(customerId)}/conversations`
+      );
+
+
+    renderConversations(
+      conversations
+    );
+
+
+  }catch(err){
+
+    $("conversationBody").innerHTML = `
+
+      <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+
+        <p class="font-semibold text-red-700">
+          Imeshindikana kupakia mazungumzo.
+        </p>
+
+        <p class="text-sm text-red-600 mt-1">
+          ${escapeHtml(err.message)}
+        </p>
+
+      </div>
+
+    `;
+
+  }
+
+}
+
+
+/* =========================
+   RENDER CONVERSATIONS
+========================= */
+
+function renderConversations(
+  conversations
+){
+
+  const body =
+    $("conversationBody");
+
+
+  body.innerHTML = "";
+
+
+  if(
+    !Array.isArray(conversations) ||
+    !conversations.length
+  ){
+
+    body.innerHTML = `
+      <div class="text-center py-10">
+
+        <div class="text-3xl mb-2">
+          💬
+        </div>
+
+        <p class="font-semibold">
+          Hakuna mazungumzo bado
+        </p>
+
+        <p class="text-sm text-slate-500 mt-1">
+          Mazungumzo ya customer
+          yataonekana hapa.
+        </p>
+
+      </div>
+    `;
+
+    return;
+
+  }
+
+
+  conversations.forEach(
+    conversation => {
+
+      const wrapper =
+        document.createElement("div");
+
+
+      wrapper.className =
+        "space-y-2";
+
+
+      wrapper.innerHTML = `
+
+        <div class="text-xs text-slate-400 text-center py-2">
+
+          ${formatDate(
+            conversation.created_at
+          )}
+
+        </div>
+
+
+        <!-- CUSTOMER -->
+        <div class="flex justify-start">
+
+          <div
+            class="max-w-[90%] bg-slate-100 rounded-xl p-3">
+
+            <p class="text-xs font-semibold text-slate-500 mb-1">
+              Mteja
+            </p>
+
+            <p class="msg text-sm">
+
+              ${escapeHtml(
+                conversation.customer_message
+              )}
+
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <!-- AI -->
+        ${
+          conversation.ai_reply
+          ?
+          `
+          <div class="flex justify-end">
+
+            <div
+              class="max-w-[90%] bg-blue-900 text-white rounded-xl p-3">
+
+              <p class="text-xs opacity-70 mb-1">
+                AI
+              </p>
+
+              <p class="msg text-sm">
+
+                ${escapeHtml(
+                  conversation.ai_reply
+                )}
+
+              </p>
+
+            </div>
+
+          </div>
+          `
+          :
+          ""
+        }
+
+      `;
+
+
+      body.appendChild(
+        wrapper
+      );
+
+    }
+  );
+
+
+  body.scrollTop =
+    body.scrollHeight;
+
+}
+
+
+/* =========================
+   CLOSE MODAL
+========================= */
+
+$("closeConversation").onclick =
+  () => {
+
+    $("conversationModal")
+      .classList
+      .add("hidden");
+
+  };
+
+
+$("conversationModal").onclick =
+  e => {
+
+    if(
+      e.target ===
+      $("conversationModal")
+    ){
+
+      $("conversationModal")
+        .classList
+        .add("hidden");
+
+    }
+
+  };
+
+
+/* =========================
+   AI CHAT
+========================= */
+
+function addChat(role,text){
+
+  const div =
+    document.createElement("div");
+
+
+  div.className =
+    role === "user"
+    ? "text-right"
+    : "text-left";
+
+
+  div.innerHTML = `
+
+    <div
+      class="inline-block max-w-[90%] rounded-xl p-3 ${
+        role === "user"
+        ? "bg-blue-900 text-white"
+        : "bg-white border"
+      }">
+
+      <div class="text-xs opacity-70 mb-1">
+
+        ${
+          role === "user"
+          ? "Wewe"
+          : "AI"
+        }
+
+      </div>
+
+
+      <div class="msg">
+
+        ${escapeHtml(text)}
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  $("chatBox")
+    .appendChild(div);
+
+
+  $("chatBox").scrollTop =
+    $("chatBox").scrollHeight;
+
+
+  return div.querySelector(
+    ".msg"
+  );
+
+}
+
+
+/* =========================
+   CHAT FORM
+========================= */
+
+$("chatForm").onsubmit =
+  async e => {
+
+    e.preventDefault();
+
+
+    const input =
+      $("chatInput");
+
+
+    const text =
+      input.value.trim();
+
+
+    if(!text)return;
+
+
+    input.value = "";
+
+
+    addChat(
+      "user",
+      text
+    );
+
+
+    const aiMsg =
+      addChat(
+        "ai",
+        ""
+      );
+
+
+    const button =
+      $("chatBtn");
+
+
+    button.disabled = true;
+
+    button.textContent =
+      "Inajibu...";
+
+
+    try{
+
+      const recentHistory =
+        chatHistory
+          .slice(-10)
+          .map(item => {
+
+            const speaker =
+              item.role === "user"
+              ? "Mteja"
+              : "AI";
+
+
+            return `${speaker}: ${item.text}`;
+
+          })
+          .join("\n");
+
+
+      const message =
+        recentHistory
+        ?
+        `Mazungumzo ya awali:
+${recentHistory}
+
+Mteja mpya: ${text}`
+        :
+        text;
+
+
+      const response =
+        await fetch(
+          API_URL + "/chat/stream",
+          {
+            method:"POST",
+
+            headers:{
+              "Content-Type":
+                "application/json",
+
+              Authorization:
+                `Bearer ${token}`
+            },
+
+            body:
+              JSON.stringify({
+                message
+              })
+          }
+        );
+
+
+      if(!response.ok){
+
+        let err =
+          "AI imeshindwa kujibu.";
+
+
+        try{
+
+          const data =
+            await response.json();
+
+
+          err =
+            data.detail ||
+            err;
+
+        }catch(_){}
+
+
+        throw new Error(err);
+
+      }
+
+
+      if(!response.body){
+
+        throw new Error(
+          "Server haijarudisha stream ya AI."
+        );
+
+      }
+
+
+      const reader =
+        response.body.getReader();
+
+
+      const decoder =
+        new TextDecoder();
+
+
+      let result = "";
+
+
+      while(true){
+
+        const {
+          done,
+          value
+        } =
+          await reader.read();
+
+
+        if(done)break;
+
+
+        result +=
+          decoder.decode(
+            value,
+            {
+              stream:true
+            }
+          );
+
+
+        aiMsg.textContent =
+          result;
+
+
+        $("chatBox").scrollTop =
+          $("chatBox").scrollHeight;
+
+      }
+
+
+      result +=
+        decoder.decode();
+
+
+      if(!result.trim()){
+
+        result =
+          "Samahani, AI haikurudisha jibu.";
+
+
+        aiMsg.textContent =
+          result;
+
+      }
+
+
+      chatHistory.push(
+        {
+          role:"user",
+          text
+        },
+
+        {
+          role:"assistant",
+          text:result
+        }
+      );
+
+
+      /*
+        Refresh customers baada ya chat.
+        Backend tayari ina-save customer
+        na conversation.
+      */
+
+      await loadCustomers();
+
+
+    }catch(err){
+
+      aiMsg.textContent =
+        "Samahani: " +
+        err.message;
+
+    }finally{
+
+      button.disabled =
+        false;
+
+      button.textContent =
+        "Tuma";
+
+    }
+
+  };
+
+
+/* =========================
+   START APP
+========================= */
+
+(async()=>{
+
+  if(token){
+
+    try{
+
+      await loadMe();
+
+    }catch(e){
+
+      localStorage.removeItem(
+        "salesai_token"
+      );
+
+      token = "";
+
+      showAuth();
+
+    }
+
+  }else{
+
+    showAuth();
+
+  }
+
+})();
+
 </script>
+
 </body>
 </html>
