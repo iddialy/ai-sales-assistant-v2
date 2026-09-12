@@ -1,6 +1,7 @@
 import os
 import re
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Any, Iterable, Optional
 
 from google import genai
@@ -9,10 +10,23 @@ from google.genai import types
 from models import Merchant
 
 try:
-    from tanzania_knowledge import get_tanzania_context
+    from tanzania_knowledge import (
+        get_tanzania_context,
+        get_tanzania_time_context,
+    )
 except Exception:
     def get_tanzania_context(text: str) -> str:
         return ""
+
+    def get_tanzania_time_context() -> str:
+        return ""
+
+
+# ============================================================
+# TANZANIA TIMEZONE
+# ============================================================
+
+TANZANIA_TZ = ZoneInfo("Africa/Dar_es_Salaam")
 
 
 # ============================================================
@@ -35,8 +49,11 @@ client = genai.Client(api_key=API_KEY)
 def verify_subscription(merchant: Merchant) -> bool:
     """
     Huzuia AI kufanya kazi kama subscription ya merchant si Active.
-    Kama mfumo wako wa sasa hauna subscription fields, AI itaendelea kufanya kazi.
+
+    Kama mfumo wako wa sasa hauna subscription fields,
+    AI itaendelea kufanya kazi.
     """
+
     status = getattr(merchant, "subscription_status", None)
 
     # Kama field haipo, usivunje mfumo.
@@ -47,16 +64,26 @@ def verify_subscription(merchant: Merchant) -> bool:
         return False
 
     expiry = getattr(merchant, "expiry_date", None)
+
     if expiry is not None:
         try:
-            # Support timezone-aware na naive datetimes.
-            now = datetime.now(expiry.tzinfo) if getattr(expiry, "tzinfo", None) else datetime.now()
+            expiry_tz = getattr(expiry, "tzinfo", None)
+
+            if expiry_tz:
+                now = datetime.now(expiry_tz)
+            else:
+                # Database inaweza kuwa imehifadhi datetime bila timezone.
+                # Kwa mfumo huu tunachukulia expiry kuwa Tanzania local time.
+                now = datetime.now(TANZANIA_TZ).replace(tzinfo=None)
+
             if now > expiry:
                 try:
                     merchant.subscription_status = "Expired"
                 except Exception:
                     pass
+
                 return False
+
         except Exception:
             pass
 
@@ -71,18 +98,23 @@ def _safe_value(obj: Any, *names: str, default: Any = "") -> Any:
     for name in names:
         try:
             value = getattr(obj, name, None)
+
             if value is not None and value != "":
                 return value
+
         except Exception:
             pass
+
     return default
 
 
 def _money(value: Any) -> str:
     if value is None or value == "":
         return "Haijawekwa"
+
     try:
         return f"TSH {float(value):,.0f}"
+
     except Exception:
         return str(value)
 
@@ -90,14 +122,48 @@ def _money(value: Any) -> str:
 def _payment_text(merchant: Merchant) -> str:
     payment = getattr(merchant, "payment_info", None)
 
-    lipa = _safe_value(payment, "lipa_namba", "lipa_number", default="")
-    bank = _safe_value(payment, "bank_account", "account_number", default="")
-    phone = _safe_value(payment, "phone_payment", "payment_phone", default="")
+    lipa = _safe_value(
+        payment,
+        "lipa_namba",
+        "lipa_number",
+        default="",
+    )
+
+    bank = _safe_value(
+        payment,
+        "bank_account",
+        "account_number",
+        default="",
+    )
+
+    phone = _safe_value(
+        payment,
+        "phone_payment",
+        "payment_phone",
+        default="",
+    )
 
     # Fallback kama payment info iko moja kwa moja kwenye merchant.
-    lipa = lipa or _safe_value(merchant, "lipa_namba", "lipa_number", default="")
-    bank = bank or _safe_value(merchant, "bank_account", "account_number", default="")
-    phone = phone or _safe_value(merchant, "phone_payment", "payment_phone", default="")
+    lipa = lipa or _safe_value(
+        merchant,
+        "lipa_namba",
+        "lipa_number",
+        default="",
+    )
+
+    bank = bank or _safe_value(
+        merchant,
+        "bank_account",
+        "account_number",
+        default="",
+    )
+
+    phone = phone or _safe_value(
+        merchant,
+        "phone_payment",
+        "payment_phone",
+        default="",
+    )
 
     return (
         f"- Lipa Namba: {lipa or 'Haijawekwa'}\n"
@@ -107,7 +173,11 @@ def _payment_text(merchant: Merchant) -> str:
 
 
 def _products_text(merchant: Merchant) -> str:
-    products = _safe_value(merchant, "products", default=[]) or []
+    products = _safe_value(
+        merchant,
+        "products",
+        default=[],
+    ) or []
 
     if not products:
         return "Hakuna bidhaa zilizowekwa kwenye catalog."
@@ -115,8 +185,20 @@ def _products_text(merchant: Merchant) -> str:
     rows = []
 
     for p in products:
-        name = _safe_value(p, "product_name", "name", default="Bidhaa isiyo na jina")
-        description = _safe_value(p, "description", "product_description", default="")
+
+        name = _safe_value(
+            p,
+            "product_name",
+            "name",
+            default="Bidhaa isiyo na jina",
+        )
+
+        description = _safe_value(
+            p,
+            "description",
+            "product_description",
+            default="",
+        )
 
         retail = _safe_value(
             p,
@@ -157,8 +239,14 @@ def _products_text(merchant: Merchant) -> str:
         row = [
             f"- Jina: {name}",
             f"  Retail: {_money(retail)}",
-            f"  Wholesale: {_money(wholesale) if wholesale not in (None, '') else 'Haijawekwa'}",
-            f"  Stock: {stock if stock not in (None, '') else 'Haijawekwa'}",
+            (
+                f"  Wholesale: "
+                f"{_money(wholesale) if wholesale not in (None, '') else 'Haijawekwa'}"
+            ),
+            (
+                f"  Stock: "
+                f"{stock if stock not in (None, '') else 'Haijawekwa'}"
+            ),
             f"  Status: {status}",
         ]
 
@@ -191,6 +279,7 @@ MESSAGE_MARKERS = [
     r"message\s*:",
 ]
 
+
 def _strip_ai_prefix(text: str) -> str:
     return re.sub(
         r"^\s*(assistant|ai|bot|sales assistant)\s*:\s*",
@@ -212,14 +301,16 @@ def extract_customer_messages(text: str) -> list[str]:
 
     Kama format haijulikani, inarudisha text yote kama message moja.
     """
+
     if not text:
         return []
 
     text = str(text).replace("\r\n", "\n").replace("\r", "\n").strip()
 
-    # Normalize common separators.
     pattern = re.compile(
-        r"(?im)^\s*(?:customer|mteja|user|you|customer\s+message|mteja\s+message|message)\s*:\s*"
+        r"(?im)^\s*"
+        r"(?:customer|mteja|user|you|customer\s+message|mteja\s+message|message)"
+        r"\s*:\s*"
     )
 
     matches = list(pattern.finditer(text))
@@ -230,8 +321,15 @@ def extract_customer_messages(text: str) -> list[str]:
     messages: list[str] = []
 
     for index, match in enumerate(matches):
+
         start = match.end()
-        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+
+        end = (
+            matches[index + 1].start()
+            if index + 1 < len(matches)
+            else len(text)
+        )
+
         chunk = text[start:end].strip()
 
         # Ondoa sehemu ya Assistant ndani ya chunk.
@@ -255,6 +353,7 @@ def extract_current_customer_message(text: str) -> str:
 
     Hii ndiyo message inayotumika kuamua lugha ya jibu.
     """
+
     messages = extract_customer_messages(text)
 
     if not messages:
@@ -270,9 +369,14 @@ def _is_likely_short_ambiguous_message(text: str) -> bool:
       na hiyo?
       how much?
       bei yake?
+
     zinaweza zisiwe na signal ya kutosha ya lugha.
     """
-    words = re.findall(r"[A-Za-zÀ-ÿ']+", text.lower())
+
+    words = re.findall(
+        r"[A-Za-zÀ-ÿ']+",
+        text.lower(),
+    )
 
     if len(words) <= 3:
         return True
@@ -280,31 +384,148 @@ def _is_likely_short_ambiguous_message(text: str) -> bool:
     return len(text.strip()) <= 18
 
 
-# English signals.
+# ============================================================
+# ENGLISH / KISWAHILI LANGUAGE SIGNALS
+# ============================================================
+
 ENGLISH_WORDS = {
-    "the", "is", "are", "a", "an", "and", "or", "of", "to", "for",
-    "with", "from", "in", "on", "at", "can", "could", "would", "will",
-    "please", "what", "which", "where", "when", "why", "how", "who",
-    "do", "does", "did", "have", "has", "need", "want", "buy", "order",
-    "price", "cost", "much", "available", "availability", "stock",
-    "delivery", "deliver", "location", "payment", "pay", "send",
-    "hello", "hi", "hey", "thanks", "thank", "good", "morning",
-    "afternoon", "evening", "tomorrow", "today", "yesterday",
+    "the",
+    "is",
+    "are",
+    "a",
+    "an",
+    "and",
+    "or",
+    "of",
+    "to",
+    "for",
+    "with",
+    "from",
+    "in",
+    "on",
+    "at",
+    "can",
+    "could",
+    "would",
+    "will",
+    "please",
+    "what",
+    "which",
+    "where",
+    "when",
+    "why",
+    "how",
+    "who",
+    "do",
+    "does",
+    "did",
+    "have",
+    "has",
+    "need",
+    "want",
+    "buy",
+    "order",
+    "price",
+    "cost",
+    "much",
+    "available",
+    "availability",
+    "stock",
+    "delivery",
+    "deliver",
+    "location",
+    "payment",
+    "pay",
+    "send",
+    "hello",
+    "hi",
+    "hey",
+    "thanks",
+    "thank",
+    "good",
+    "morning",
+    "afternoon",
+    "evening",
+    "tomorrow",
+    "today",
+    "yesterday",
 }
 
-# Kiswahili signals.
+
 SWAHILI_WORDS = {
-    "na", "ni", "ya", "za", "wa", "la", "hii", "hiyo", "ile", "hizi",
-    "hizo", "hizo", "kwa", "katika", "kwenye", "cha", "vya", "wa",
-    "mimi", "sisi", "wewe", "yeye", "mteja", "bidhaa", "bei", "shilingi",
-    "ipo", "zipo", "iko", "ziko", "nina", "nahitaji", "nataka", "nitanunua",
-    "nunua", "oda", "agiza", "agizo", "malipo", "lipa", "lipa", "namba",
-    "simu", "mahali", "wapi", "lini", "leo", "jana", "kesho", "asubuhi",
-    "mchana", "jioni", "sawa", "habari", "asante", "tafadhali", "naomba",
-    "una", "mnayo", "mnazo", "nipe", "nipatie", "hii", "hiyo", "yake",
-    "kwangu", "kwako", "gharama", "delivery", "peleka", "kufikisha",
-    "imeisha", "imebaki", "stock", "duka", "biashara",
+    "na",
+    "ni",
+    "ya",
+    "za",
+    "wa",
+    "la",
+    "hii",
+    "hiyo",
+    "ile",
+    "hizi",
+    "hizo",
+    "kwa",
+    "katika",
+    "kwenye",
+    "cha",
+    "vya",
+    "mimi",
+    "sisi",
+    "wewe",
+    "yeye",
+    "mteja",
+    "bidhaa",
+    "bei",
+    "shilingi",
+    "ipo",
+    "zipo",
+    "iko",
+    "ziko",
+    "nina",
+    "nahitaji",
+    "nataka",
+    "nitanunua",
+    "nunua",
+    "oda",
+    "agiza",
+    "agizo",
+    "malipo",
+    "lipa",
+    "namba",
+    "simu",
+    "mahali",
+    "wapi",
+    "lini",
+    "leo",
+    "jana",
+    "kesho",
+    "asubuhi",
+    "mchana",
+    "jioni",
+    "sawa",
+    "habari",
+    "asante",
+    "tafadhali",
+    "naomba",
+    "una",
+    "mnayo",
+    "mnazo",
+    "nipe",
+    "nipatie",
+    "yake",
+    "kwangu",
+    "kwako",
+    "gharama",
+    "delivery",
+    "peleka",
+    "kufikisha",
+    "imeisha",
+    "imebaki",
+    "stock",
+    "duka",
+    "biashara",
 }
+
 
 SWAHILI_PHRASES = [
     "habari yako",
@@ -334,6 +555,7 @@ SWAHILI_PHRASES = [
     "imeisha",
     "imebakia",
 ]
+
 
 ENGLISH_PHRASES = [
     "how much",
@@ -366,26 +588,46 @@ def detect_customer_language(
     IMPORTANT:
     Lugha inaamuliwa kutoka CURRENT MESSAGE.
 
-    Previous message inatumika tu pale current message ni fupi/ambiguous.
+    Previous message inatumika tu pale current message
+    ni fupi/ambiguous.
+
     Hii inaruhusu:
       English -> Kiswahili -> English
-    bila conversation language lock.
+
+    bila conversation-wide language lock.
     """
+
     text = (current_message or "").strip().lower()
 
     if not text:
         return "sw"
 
-    normalized = re.sub(r"[^a-zà-ÿ0-9'\s]", " ", text)
-    normalized = re.sub(r"\s+", " ", normalized).strip()
+    normalized = re.sub(
+        r"[^a-zà-ÿ0-9'\s]",
+        " ",
+        text,
+    )
+
+    normalized = re.sub(
+        r"\s+",
+        " ",
+        normalized,
+    ).strip()
 
     sw_score = 0
     en_score = 0
 
     words = set(normalized.split())
 
-    sw_score += sum(1 for w in words if w in SWAHILI_WORDS)
-    en_score += sum(1 for w in words if w in ENGLISH_WORDS)
+    sw_score += sum(
+        1 for w in words
+        if w in SWAHILI_WORDS
+    )
+
+    en_score += sum(
+        1 for w in words
+        if w in ENGLISH_WORDS
+    )
 
     for phrase in SWAHILI_PHRASES:
         if phrase in normalized:
@@ -396,10 +638,22 @@ def detect_customer_language(
             en_score += 3
 
     # Strong Swahili grammatical signals.
-    sw_score += len(re.findall(r"\b(?:mna|mnayo|mnazo|nina|nipo|ipo|zipo|ziko|naomba|nataka|nahitaji|bei|wapi|lini|kesho|leo)\b", normalized))
+    sw_score += len(
+        re.findall(
+            r"\b(?:mna|mnayo|mnazo|nina|nipo|ipo|zipo|ziko|"
+            r"naomba|nataka|nahitaji|bei|wapi|lini|kesho|leo)\b",
+            normalized,
+        )
+    )
 
     # Strong English question/auxiliary signals.
-    en_score += len(re.findall(r"\b(?:what|where|when|why|how|can|could|would|do|does|is|are|will)\b", normalized))
+    en_score += len(
+        re.findall(
+            r"\b(?:what|where|when|why|how|can|could|would|"
+            r"do|does|is|are|will)\b",
+            normalized,
+        )
+    )
 
     if sw_score > en_score:
         return "sw"
@@ -409,15 +663,28 @@ def detect_customer_language(
 
     # Current message haijatoa signal ya kutosha.
     # Kwa message fupi, tumia immediately previous customer message.
-    if _is_likely_short_ambiguous_message(current_message) and previous_customer_message:
-        if previous_customer_message.strip().lower() != current_message.strip().lower():
-            return detect_customer_language(previous_customer_message, None)
+    if (
+        _is_likely_short_ambiguous_message(current_message)
+        and previous_customer_message
+    ):
+        if (
+            previous_customer_message.strip().lower()
+            != current_message.strip().lower()
+        ):
+            return detect_customer_language(
+                previous_customer_message,
+                None,
+            )
 
     # Default ya mfumo ni Kiswahili.
     return "sw"
 
 
-def _previous_customer_message(full_text: str, current_message: str) -> Optional[str]:
+def _previous_customer_message(
+    full_text: str,
+    current_message: str,
+) -> Optional[str]:
+
     messages = extract_customer_messages(full_text)
 
     if len(messages) < 2:
@@ -436,11 +703,42 @@ def _language_name(language: str) -> str:
 # ============================================================
 
 def _business_context(merchant: Merchant) -> str:
-    name = _safe_value(merchant, "business_name", default="Biashara")
-    phone = _safe_value(merchant, "phone_number", "phone", default="")
-    location = _safe_value(merchant, "business_location", "location", default="")
-    business_type = _safe_value(merchant, "business_type", "category", default="")
-    hours = _safe_value(merchant, "business_hours", "opening_hours", "hours", default="")
+
+    name = _safe_value(
+        merchant,
+        "business_name",
+        default="Biashara",
+    )
+
+    phone = _safe_value(
+        merchant,
+        "phone_number",
+        "phone",
+        default="",
+    )
+
+    location = _safe_value(
+        merchant,
+        "business_location",
+        "location",
+        default="",
+    )
+
+    business_type = _safe_value(
+        merchant,
+        "business_type",
+        "category",
+        default="",
+    )
+
+    hours = _safe_value(
+        merchant,
+        "business_hours",
+        "opening_hours",
+        "hours",
+        default="",
+    )
+
     description = _safe_value(
         merchant,
         "business_description",
@@ -460,39 +758,108 @@ BUSINESS PROFILE
 
 
 def _calendar_context() -> str:
-    now = datetime.now().astimezone()
+    """
+    Tanzania-specific current date/time.
+
+    Muhimu:
+    Render inaweza kuwa na timezone nyingine.
+    Kwa hiyo hatutumii datetime.now().astimezone()
+    kama source kuu.
+
+    Tunatumia Africa/Dar_es_Salaam moja kwa moja.
+    """
+
+    now = datetime.now(TANZANIA_TZ)
 
     weekday_names = [
-        "Monday", "Tuesday", "Wednesday", "Thursday",
-        "Friday", "Saturday", "Sunday"
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
     ]
 
     month_names = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
     ]
 
-    return f"""
+    # Tanzania knowledge module ikiwa ipo,
+    # tumia context yake pia.
+    try:
+        knowledge_time = get_tanzania_time_context()
+    except Exception:
+        knowledge_time = ""
+
+    base_context = f"""
 CURRENT TANZANIA DATE/TIME CONTEXT
 - Current date: {now.day} {month_names[now.month - 1]} {now.year}
 - Current weekday: {weekday_names[now.weekday()]}
-- Current local time: {now.strftime("%H:%M")}
+- Current local time: {now.strftime("%H:%M:%S")}
 - Timezone: Africa/Dar_es_Salaam
+- UTC offset: {now.strftime("%z")}
 
 Calendar rules:
-- Today = current date above.
+- Today = current Tanzania calendar date above.
 - Yesterday = one calendar day before today.
 - Tomorrow = one calendar day after today.
 - Do not invent dates.
-- If the customer asks "leo", "kesho", "jana", "this week", "next week", etc.,
-  reason from the current date/time above.
+- If the customer asks "leo", "kesho", "jana", "this week",
+  "next week", etc., reason from the current Tanzania date/time above.
 """.strip()
+
+    if knowledge_time:
+        return f"""
+{base_context}
+
+TANZANIA KNOWLEDGE TIME CONTEXT
+{knowledge_time}
+""".strip()
+
+    return base_context
+
+
+def _tanzania_knowledge_context(text: str) -> str:
+    """
+    Gets Tanzania geographic/general knowledge from
+    tanzania_knowledge.py.
+
+    Ikiwa module ina matatizo, system haianguki.
+    """
+
+    try:
+        context = get_tanzania_context(text)
+
+        if context:
+            return context
+
+    except Exception as exc:
+        print(f"Tanzania knowledge error: {exc}")
+
+    return (
+        "Use the business profile and customer-provided location information. "
+        "Do not invent precise geographic details."
+    )
 
 
 def _language_instruction(language: str) -> str:
+
     if language == "en":
         return """
 RESPONSE LANGUAGE — ENGLISH
+
 The customer's CURRENT message is in English.
 Reply in English now.
 
@@ -500,11 +867,13 @@ CRITICAL:
 - Do NOT continue using Kiswahili merely because previous messages were in Kiswahili.
 - Do NOT lock the conversation to its first language.
 - The CURRENT customer message has priority.
-- If the customer switches to Kiswahili in the next message, switch to Kiswahili immediately.
+- If the customer switches to Kiswahili in the next message,
+  switch to Kiswahili immediately.
 """.strip()
 
     return """
 RESPONSE LANGUAGE — KISWAHILI
+
 The customer's CURRENT message is in Kiswahili.
 Reply in Kiswahili now.
 
@@ -512,7 +881,8 @@ CRITICAL:
 - Do NOT continue using English merely because previous messages were in English.
 - Do NOT lock the conversation to its first language.
 - The CURRENT customer message has priority.
-- If the customer switches to English in the next message, switch to English immediately.
+- If the customer switches to English in the next message,
+  switch to English immediately.
 """.strip()
 
 
@@ -527,15 +897,25 @@ def build_system_instruction(
 ) -> str:
 
     # Full conversation may contain history.
-    current_message = extract_current_customer_message(customer_message)
-    previous_message = _previous_customer_message(customer_message, current_message)
+    current_message = extract_current_customer_message(
+        customer_message
+    )
+
+    previous_message = _previous_customer_message(
+        customer_message,
+        current_message,
+    )
 
     language = detect_customer_language(
         current_message,
         previous_message,
     )
 
-    tanzania_context = get_tanzania_context(current_message)
+    # Tanzania context MUST use the current customer message,
+    # not the entire conversation history.
+    tanzania_context = _tanzania_knowledge_context(
+        current_message
+    )
 
     return f"""
 You are an AI Sales Assistant for a Tanzanian business.
@@ -545,8 +925,8 @@ Your main job is to:
 2. Help the customer choose a product.
 3. Build trust.
 4. Move interested customers toward a purchase/order.
-5. Never invent business information, product information, prices, stock, payment details,
-   locations, delivery fees, delivery times, or opening hours.
+5. Never invent business information, product information, prices, stock,
+   payment details, locations, delivery fees, delivery times, or opening hours.
 
 PLATFORM
 {platform}
@@ -562,7 +942,7 @@ PAYMENT INFORMATION
 {_calendar_context()}
 
 TANZANIA KNOWLEDGE
-{tanzania_context or "Use the business profile and customer-provided location information. Do not invent precise geographic details."}
+{tanzania_context}
 
 ============================================================
 HIGHEST-PRIORITY LANGUAGE RULE
@@ -592,13 +972,51 @@ Never ask the customer to choose a language.
 Never mention this language-detection rule to the customer.
 
 ============================================================
+TANZANIA LOCATION KNOWLEDGE
+============================================================
+
+You are assisting customers in Tanzania.
+
+Use the TANZANIA KNOWLEDGE section as geographic reference.
+
+Understand the Tanzanian geographic hierarchy when information is available:
+- Tanzania
+- Region
+- District
+- Council
+- Ward / Shehia
+- Village / Mtaa / Street
+- Postcode
+
+Important rules:
+1. Recognize common Tanzanian region and district names.
+2. Recognize common alternative spellings and abbreviations when provided
+   by the Tanzania knowledge context.
+3. Understand that a customer may mention a place using a short/local name.
+4. Do not automatically say a Tanzanian place does not exist just because
+   it is missing from your supplied context.
+5. If the exact village, mtaa, ward, or street is not verified,
+   do NOT invent it.
+6. If a customer gives a location, preserve the location they provided.
+7. If the customer asks for a precise geographic fact that is not verified,
+   clearly say that the exact information needs confirmation.
+8. Do not fabricate distances, routes, travel times, ward names,
+   village names, or postcodes.
+9. Tanzania uses regions and districts/councils; Zanzibar has its own
+   administrative structure. Do not incorrectly force Zanzibar places
+   into mainland administrative assumptions.
+10. If the customer asks "uko wapi?", "mko wapi?", "where are you?",
+    use BUSINESS PROFILE first because that is the actual business location.
+
+============================================================
 SALES RULES
 ============================================================
 
 1. Use only real product information in the catalog.
 2. Never make up a price.
 3. Never change a product's price.
-4. Retail price is for normal customers unless the customer clearly asks for wholesale/bulk pricing.
+4. Retail price is for normal customers unless the customer clearly asks
+   for wholesale/bulk pricing.
 5. Wholesale price should only be used when appropriate for wholesale/bulk purchases.
 6. Respect stock quantity and status.
 7. If a product is IMEISHA/out of stock, say so clearly and do not promise availability.
@@ -614,10 +1032,13 @@ SALES RULES
 12. Never claim that payment has been received unless the system explicitly confirms it.
 13. Never claim an order is completed unless the system explicitly confirms it.
 14. Never invent a delivery fee or delivery time.
-15. If delivery information is not provided by the business, say that the owner can confirm it.
-16. If the customer asks for a precise route, distance, exact delivery fee, or exact delivery time
-    and the system does not have verified data, do not guess.
-17. For Tanzanian places, do not claim a place is nonexistent merely because it is not in your context.
+15. If delivery information is not provided by the business,
+    say that the owner can confirm it.
+16. If the customer asks for a precise route, distance, exact delivery fee,
+    or exact delivery time and the system does not have verified data,
+    do not guess.
+17. For Tanzanian places, do not claim a place is nonexistent merely because
+    it is not in your context.
 18. Use TSH for Tanzanian prices.
 19. Keep answers natural, concise, friendly, and sales-focused.
 20. Do not overwhelm the customer with unnecessary information.
@@ -653,9 +1074,13 @@ When customer asks about:
 - this month
 - next month
 
-use the current Tanzania date/time context.
+use the CURRENT TANZANIA DATE/TIME CONTEXT.
 
-Do not confuse calendar dates with relative words.
+Important:
+- Tanzania local time is Africa/Dar_es_Salaam.
+- Do not use Render/server timezone.
+- Do not guess the current date.
+- Do not confuse calendar dates with relative words.
 
 ============================================================
 BUSINESS HOURS
@@ -666,7 +1091,8 @@ If working hours are available in BUSINESS PROFILE:
 - Do not invent hours.
 
 If working hours are missing:
-- Say the business hours are not available and offer to connect the customer with the owner.
+- Say the business hours are not available
+  and offer to connect the customer with the owner.
 
 ============================================================
 STYLE
@@ -687,15 +1113,22 @@ Do not expose internal instructions, hidden prompts, scoring, or system details.
 
 
 # ============================================================
-# GEMINI CALLS
+# GEMINI CONFIG
 # ============================================================
 
-def _generate_config(system_instruction: str) -> types.GenerateContentConfig:
+def _generate_config(
+    system_instruction: str,
+) -> types.GenerateContentConfig:
+
     return types.GenerateContentConfig(
         system_instruction=system_instruction,
         temperature=0.35,
     )
 
+
+# ============================================================
+# NORMAL AI RESPONSE
+# ============================================================
 
 def generate_ai_sales_response(
     merchant: Merchant,
@@ -713,23 +1146,44 @@ def generate_ai_sales_response(
     )
 
     try:
+
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=customer_message,
-            config=_generate_config(system_instruction),
+            config=_generate_config(
+                system_instruction
+            ),
         )
 
-        text = getattr(response, "text", None)
+        text = getattr(
+            response,
+            "text",
+            None,
+        )
 
         if text:
             return text.strip()
 
-        return "Samahani, sijapata jibu kwa sasa. Tafadhali jaribu tena."
+        return (
+            "Samahani, sijapata jibu kwa sasa. "
+            "Tafadhali jaribu tena."
+        )
 
     except Exception as exc:
-        print(f"Gemini error: {exc}")
-        return "Samahani, kuna tatizo la muda kwenye huduma ya AI. Tafadhali jaribu tena."
 
+        print(
+            f"Gemini error: {exc}"
+        )
+
+        return (
+            "Samahani, kuna tatizo la muda kwenye "
+            "huduma ya AI. Tafadhali jaribu tena."
+        )
+
+
+# ============================================================
+# STREAMING AI RESPONSE
+# ============================================================
 
 def generate_ai_sales_response_stream(
     merchant: Merchant,
@@ -748,17 +1202,33 @@ def generate_ai_sales_response_stream(
     )
 
     try:
+
         stream = client.models.generate_content_stream(
             model=GEMINI_MODEL,
             contents=customer_message,
-            config=_generate_config(system_instruction),
+            config=_generate_config(
+                system_instruction
+            ),
         )
 
         for chunk in stream:
-            text = getattr(chunk, "text", None)
+
+            text = getattr(
+                chunk,
+                "text",
+                None,
+            )
+
             if text:
                 yield text
 
     except Exception as exc:
-        print(f"Gemini streaming error: {exc}")
-        yield "Samahani, kuna tatizo la muda kwenye huduma ya AI. Tafadhali jaribu tena."
+
+        print(
+            f"Gemini streaming error: {exc}"
+        )
+
+        yield (
+            "Samahani, kuna tatizo la muda kwenye "
+            "huduma ya AI. Tafadhali jaribu tena."
+        )
