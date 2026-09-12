@@ -1,715 +1,312 @@
 """
-Tanzania Geographic & Cultural Knowledge Layer
+Tanzania Knowledge + Time Engine
+--------------------------------
+Designed for the AI Sales Assistant.
 
-This module helps the AI understand Tanzanian locations,
-administrative areas, common local names, addresses,
-and everyday Tanzanian sales language.
+Authoritative references used when designing this module:
+- Tanzania National Bureau of Statistics (NBS): geographic levels include
+  region, district, ward/shehia, villages/mitaa and enumeration areas.
+- TCRA: Tanzania postcode system and national postcode directory.
 
-The design intentionally keeps geographic knowledge outside
-ai_engine.py so the dataset can grow without breaking the AI.
+Important:
+This module intentionally does NOT invent a complete village/street list.
+For village/mtaa-level verification, the application should use an official
+TCRA/NBS dataset or a connected lookup service. The module provides a strong
+national geographic backbone and a safe context layer.
 """
+
+from __future__ import annotations
 
 import re
-import unicodedata
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from typing import Optional
+
+TZ_TANZANIA = ZoneInfo("Africa/Dar_es_Salaam")
 
 
-# ============================================================
-# TANZANIA COUNTRY CONTEXT
-# ============================================================
-
-COUNTRY_CONTEXT = """
-COUNTRY:
-United Republic of Tanzania
-
-COMMON NAME:
-Tanzania
-
-COUNTRY CODE:
-TZ
-
-PHONE COUNTRY CODE:
-+255
-
-CURRENCY:
-Tanzanian Shilling (TZS / TSH)
-
-MAIN LANGUAGES USED IN BUSINESS:
-Kiswahili and English
-
-TIMEZONE:
-Africa/Dar_es_Salaam
-
-IMPORTANT:
-Tanzania includes Mainland Tanzania and Zanzibar.
-"""
-
-
-# ============================================================
-# REGIONS
-# ============================================================
-
-TANZANIA_REGIONS = {
-    # Mainland
-    "arusha": "Arusha",
-    "dar es salaam": "Dar es Salaam",
-    "dodoma": "Dodoma",
-    "geita": "Geita",
-    "iringa": "Iringa",
-    "kagera": "Kagera",
-    "katavi": "Katavi",
-    "kigoma": "Kigoma",
-    "kilimanjaro": "Kilimanjaro",
-    "lindi": "Lindi",
-    "manyara": "Manyara",
-    "mara": "Mara",
-    "mbeya": "Mbeya",
-    "morogoro": "Morogoro",
-    "mtwara": "Mtwara",
-    "mwanza": "Mwanza",
-    "njombe": "Njombe",
-    "pwani": "Pwani",
-    "rukwa": "Rukwa",
-    "ruvuma": "Ruvuma",
-    "shinyanga": "Shinyanga",
-    "simiyu": "Simiyu",
-    "singida": "Singida",
-    "songwe": "Songwe",
-    "tabora": "Tabora",
-    "tanga": "Tanga",
-
-    # Zanzibar
-    "kaskazini unguja": "Kaskazini Unguja",
-    "kusini unguja": "Kusini Unguja",
-    "mjini magharibi": "Mjini Magharibi",
-    "kaskazini pemba": "Kaskazini Pemba",
-    "kusini pemba": "Kusini Pemba",
+# TCRA regional postcode bases. Tanzania has 26 regions in the published
+# national postcode list.
+REGIONS = {
+    "Arusha": "23000",
+    "Dar es Salaam": "11000",
+    "Dodoma": "41000",
+    "Geita": "30000",
+    "Iringa": "51000",
+    "Kagera": "35000",
+    "Katavi": "50000",
+    "Kigoma": "47000",
+    "Kilimanjaro": "25000",
+    "Lindi": "65000",
+    "Manyara": "27000",
+    "Mara": "31000",
+    "Mbeya": "53000",
+    "Morogoro": "67000",
+    "Mtwara": "63000",
+    "Mwanza": "33000",
+    "Njombe": "59000",
+    "Pwani": "61000",
+    "Rukwa": "55000",
+    "Ruvuma": "57000",
+    "Shinyanga": "37000",
+    "Simiyu": "39000",
+    "Singida": "43000",
+    "Songwe": "54100",
+    "Tabora": "45000",
+    "Tanga": "21000",
 }
-
-
-# ============================================================
-# COMMON REGION ALIASES
-# ============================================================
 
 REGION_ALIASES = {
     "dar": "Dar es Salaam",
-    "dar es salaam": "Dar es Salaam",
     "dsm": "Dar es Salaam",
-
-    "arusha": "Arusha",
-    "dodoma": "Dodoma",
-    "mwanza": "Mwanza",
-    "mbeya": "Mbeya",
-    "morogoro": "Morogoro",
-    "tanga": "Tanga",
-    "tabora": "Tabora",
-    "kigoma": "Kigoma",
-    "iringa": "Iringa",
-    "mtwara": "Mtwara",
-    "lindi": "Lindi",
-    "kagera": "Kagera",
-    "manyara": "Manyara",
-    "mara": "Mara",
-    "geita": "Geita",
-    "katavi": "Katavi",
-    "kilimanjaro": "Kilimanjaro",
-    "njombe": "Njombe",
-    "pwani": "Pwani",
-    "rukwa": "Rukwa",
-    "ruvuma": "Ruvuma",
-    "shinyanga": "Shinyanga",
-    "simiyu": "Simiyu",
-    "singida": "Singida",
-    "songwe": "Songwe",
+    "dar es salam": "Dar es Salaam",
+    "dar es salaam": "Dar es Salaam",
+    "dodoma mjini": "Dodoma",
+    "arusha mjini": "Arusha",
+    "mwanza mjini": "Mwanza",
+    "mbeya mjini": "Mbeya",
+    "tanga mjini": "Tanga",
+    "morogoro mjini": "Morogoro",
+    "zanzibar": "Zanzibar",
+    "ungunja": "Zanzibar",
+    "pemba": "Pemba",
 }
 
-
-# ============================================================
-# IMPORTANT TANZANIAN CITIES / URBAN CENTRES
-# ============================================================
-
-TANZANIAN_CITIES = {
-    "Dar es Salaam": "Dar es Salaam",
-    "Dodoma": "Dodoma",
-    "Arusha": "Arusha",
-    "Mwanza": "Mwanza",
-    "Mbeya": "Mbeya",
-    "Morogoro": "Morogoro",
-    "Tanga": "Tanga",
-    "Zanzibar City": "Mjini Magharibi",
-    "Moshi": "Kilimanjaro",
-    "Iringa": "Iringa",
-    "Songea": "Ruvuma",
-    "Mtwara": "Mtwara",
-    "Lindi": "Lindi",
-    "Tabora": "Tabora",
-    "Kigoma": "Kigoma",
-    "Shinyanga": "Shinyanga",
-    "Bukoba": "Kagera",
-    "Musoma": "Mara",
-    "Singida": "Singida",
-    "Sumbawanga": "Rukwa",
-    "Njombe": "Njombe",
-    "Geita": "Geita",
-    "Babati": "Manyara",
-    "Mpanda": "Katavi",
-    "Tunduma": "Songwe",
+# High-value administrative/place vocabulary. This is intentionally not
+# presented as an exhaustive lower-level gazetteer.
+COMMON_DISTRICTS = {
+    "Dar es Salaam": [
+        "Ilala", "Kinondoni", "Temeke", "Ubungo", "Kigamboni",
+    ],
+    "Arusha": [
+        "Arusha City", "Arusha District", "Longido", "Meru",
+        "Monduli", "Ngorongoro",
+    ],
+    "Dodoma": [
+        "Dodoma City", "Bahi", "Chamwino", "Chemba", "Kondoa",
+        "Kongwa", "Mpwapwa",
+    ],
+    "Kilimanjaro": [
+        "Moshi Municipal", "Moshi District", "Hai", "Rombo",
+        "Same", "Siha",
+    ],
+    "Tanga": [
+        "Tanga City", "Korogwe", "Lushoto", "Handeni", "Kilindi",
+        "Muheza", "Mkinga", "Pangani",
+    ],
+    "Morogoro": [
+        "Morogoro Municipal", "Morogoro District", "Kilosa",
+        "Kilombero", "Ulanga", "Mvomero", "Gairo", "Malinyi",
+    ],
+    "Mwanza": [
+        "Nyamagana", "Ilemela", "Sengerema", "Magu", "Misungwi",
+        "Kwimba", "Ukerewe",
+    ],
+    "Mbeya": [
+        "Mbeya City", "Mbeya District", "Rungwe", "Kyela",
+        "Chunya", "Mbarali",
+    ],
+    "Pwani": [
+        "Kibaha Town", "Kibaha District", "Bagamoyo", "Chalinze",
+        "Mkuranga", "Rufiji", "Kibiti", "Mafia",
+    ],
+    "Lindi": [
+        "Lindi Municipal", "Lindi District", "Kilwa", "Liwale",
+        "Nachingwea", "Ruangwa",
+    ],
+    "Mtwara": [
+        "Mtwara Municipal", "Mtwara District", "Masasi",
+        "Nanyumbu", "Newala", "Tandahimba",
+    ],
+    "Ruvuma": [
+        "Songea Municipal", "Songea District", "Mbinga",
+        "Namtumbo", "Nyasa", "Tunduru",
+    ],
+    "Iringa": [
+        "Iringa Municipal", "Iringa District", "Kilolo", "Mufindi",
+    ],
+    "Njombe": [
+        "Njombe Town", "Njombe District", "Ludewa", "Makete",
+        "Wanging'ombe",
+    ],
+    "Rukwa": [
+        "Sumbawanga Municipal", "Sumbawanga District", "Kalambo",
+        "Nkasi",
+    ],
+    "Katavi": [
+        "Mpanda Municipal", "Mpanda District", "Mlele", "Nsimbo",
+    ],
+    "Kigoma": [
+        "Kigoma-Ujiji", "Kigoma District", "Kasulu", "Uvinza",
+        "Buhigwe", "Kakonko",
+    ],
+    "Tabora": [
+        "Tabora Municipal", "Nzega", "Igunga", "Uyui", "Urambo",
+        "Sikonge", "Kaliua",
+    ],
+    "Shinyanga": [
+        "Shinyanga Municipal", "Shinyanga District", "Kahama",
+        "Kishapu", "Bariadi",
+    ],
+    "Simiyu": [
+        "Bariadi", "Busega", "Maswa", "Meatu", "Itilima",
+    ],
+    "Mara": [
+        "Musoma Municipal", "Musoma District", "Bunda", "Butiama",
+        "Rorya", "Serengeti", "Tarime",
+    ],
+    "Kagera": [
+        "Bukoba Municipal", "Bukoba District", "Biharamulo",
+        "Karagwe", "Kyerwa", "Missenyi", "Ngara",
+    ],
+    "Geita": [
+        "Geita Town", "Geita District", "Bukombe", "Chato",
+        "Mbogwe", "Nyang'hwale",
+    ],
+    "Manyara": [
+        "Babati Town", "Babati District", "Hanang", "Kiteto",
+        "Mbulu", "Simanjiro",
+    ],
+    "Singida": [
+        "Singida Municipal", "Singida District", "Iramba",
+        "Manyoni", "Ikungi", "Mkalama",
+    ],
 }
 
-
-# ============================================================
-# DAR ES SALAAM COMMON LOCATIONS
-# ============================================================
-
-DAR_ES_SALAAM_LOCATIONS = {
-    "kariakoo": {
-        "name": "Kariakoo",
-        "city": "Dar es Salaam",
-        "type": "commercial area / market area",
-    },
-
-    "tandale": {
-        "name": "Tandale",
-        "city": "Dar es Salaam",
-        "type": "locality / ward area",
-    },
-
-    "manzese": {
-        "name": "Manzese",
-        "city": "Dar es Salaam",
-        "type": "locality / ward area",
-    },
-
-    "tairi tatu": {
-        "name": "Tairi Tatu",
-        "city": "Dar es Salaam",
-        "type": "local area",
-    },
-
-    "magomeni": {
-        "name": "Magomeni",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "sinza": {
-        "name": "Sinza",
-        "city": "Dar es Salaam",
-        "type": "locality / ward area",
-    },
-
-    "mikocheni": {
-        "name": "Mikocheni",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "msasani": {
-        "name": "Msasani",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "masaki": {
-        "name": "Masaki",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "kinondoni": {
-        "name": "Kinondoni",
-        "city": "Dar es Salaam",
-        "type": "municipality / area",
-    },
-
-    "ilala": {
-        "name": "Ilala",
-        "city": "Dar es Salaam",
-        "type": "municipality / district area",
-    },
-
-    "temeke": {
-        "name": "Temeke",
-        "city": "Dar es Salaam",
-        "type": "municipality / district area",
-    },
-
-    "ubungo": {
-        "name": "Ubungo",
-        "city": "Dar es Salaam",
-        "type": "municipality / district area",
-    },
-
-    "kigamboni": {
-        "name": "Kigamboni",
-        "city": "Dar es Salaam",
-        "type": "municipality / district area",
-    },
-
-    "posta": {
-        "name": "Posta",
-        "city": "Dar es Salaam",
-        "type": "central business area",
-    },
-
-    "upanga": {
-        "name": "Upanga",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "kariakoo market": {
-        "name": "Kariakoo Market",
-        "city": "Dar es Salaam",
-        "type": "market",
-    },
-
-    "buguruni": {
-        "name": "Buguruni",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "tabata": {
-        "name": "Tabata",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "kimara": {
-        "name": "Kimara",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "mbezi": {
-        "name": "Mbezi",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "gongolamboto": {
-        "name": "Gongolamboto",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "chanika": {
-        "name": "Chanika",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "mbagala": {
-        "name": "Mbagala",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "kurasini": {
-        "name": "Kurasini",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "changombe": {
-        "name": "Chang'ombe",
-        "city": "Dar es Salaam",
-        "type": "locality",
-    },
-
-    "ilala": {
-        "name": "Ilala",
-        "city": "Dar es Salaam",
-        "type": "district area",
-    },
-}
+# Important Zanzibar regions for United Republic context.
+ZANZIBAR_REGIONS = [
+    "Kaskazini Unguja",
+    "Kusini Unguja",
+    "Mjini Magharibi",
+    "Kaskazini Pemba",
+    "Kusini Pemba",
+]
 
 
-# ============================================================
-# COMMON TANZANIAN ADDRESS TERMS
-# ============================================================
-
-ADDRESS_TERMS = {
-    "mtaa": "street/locality",
-    "mtaa wa": "street/locality",
-    "barabara": "road/street",
-    "barabara ya": "road/street",
-    "road": "road/street",
-    "street": "street",
-    "kijiji": "village",
-    "kijijini": "village/rural area",
-    "kitongoji": "hamlet/sub-village",
-    "kata": "ward",
-    "wilaya": "district",
-    "mkoa": "region",
-    "shehia": "shehia",
-    "eneo": "area/locality",
-    "soko": "market",
-    "stendi": "bus/transport stand",
-    "terminal": "transport terminal",
-    "posta": "post office / central area",
-    "jengo": "building",
-    "ghorofa": "floor",
-    "nyumba": "house",
-    "namba ya nyumba": "house number",
-    "postcode": "postcode",
-    "postikodi": "postcode",
-}
-
-
-# ============================================================
-# COMMON TANZANIAN SALES / CHAT EXPRESSIONS
-# ============================================================
-
-TANZANIAN_SALES_LANGUAGE = {
-    "sh ngapi": "asking for price",
-    "sh ngapi?": "asking for price",
-    "bei yake": "asking for price",
-    "bei ni ngapi": "asking for price",
-    "bei gani": "asking for price",
-    "mna hii": "asking whether product is available",
-    "ipo": "asking whether product is available",
-    "ipo bado": "asking whether product is still available",
-    "mna stock": "asking about stock",
-    "stock ipo": "asking about stock",
-    "na delivery": "asking about delivery",
-    "delivery je": "asking about delivery",
-    "mnafika": "asking whether delivery/service reaches location",
-    "mko wapi": "asking business location",
-    "upo wapi": "asking business location",
-    "nitumie namba": "asking for payment/contact number",
-    "lipa vipi": "asking payment method",
-    "bei ya jumla": "asking wholesale price",
-    "nipunguzie": "asking for discount",
-    "last price": "asking for final/best price",
-    "nataka mbili": "customer wants quantity two",
-    "nataka tatu": "customer wants quantity three",
-}
-
-
-# ============================================================
-# NORMALIZATION
-# ============================================================
-
-def normalize_text(text: str) -> str:
-    """
-    Normalize customer text for location matching.
-    """
-
-    if not text:
-        return ""
-
-    text = str(text).lower().strip()
-
-    text = unicodedata.normalize(
-        "NFKD",
-        text
-    )
-
-    text = "".join(
-        char
-        for char in text
-        if not unicodedata.combining(char)
-    )
-
-    text = re.sub(
-        r"\s+",
-        " ",
-        text
-    )
-
+def normalize_place(text: str) -> str:
+    text = (text or "").lower().strip()
+    text = text.replace("’", "'")
+    text = re.sub(r"[^a-z0-9\s'\-]", " ", text)
+    text = re.sub(r"\s+", " ", text)
     return text
 
 
-# ============================================================
-# LOCATION MATCHING
-# ============================================================
+def resolve_region(text: str) -> Optional[str]:
+    value = normalize_place(text)
 
-def find_known_locations(
-    customer_message: str
-) -> list[dict]:
-    """
-    Detect known Tanzanian regions, cities and common
-    Dar es Salaam locations.
+    for region in REGIONS:
+        if normalize_place(region) in value:
+            return region
 
-    This does not claim that an unknown location does not exist.
-    It only returns locations confidently recognized by this layer.
-    """
+    for alias, region in REGION_ALIASES.items():
+        if alias in value:
+            return region
 
-    normalized = normalize_text(
-        customer_message
-    )
-
-    results = []
-
-    # Regions
-    for alias, official_name in REGION_ALIASES.items():
-
-        pattern = rf"\b{re.escape(alias)}\b"
-
-        if re.search(pattern, normalized):
-
-            results.append({
-                "name": official_name,
-                "type": "region",
-                "confidence": "high",
-            })
-
-    # Cities
-    for city, region in TANZANIAN_CITIES.items():
-
-        city_normalized = normalize_text(
-            city
-        )
-
-        if city_normalized in normalized:
-
-            results.append({
-                "name": city,
-                "region": region,
-                "type": "city",
-                "confidence": "high",
-            })
-
-    # Dar locations
-    for key, info in DAR_ES_SALAAM_LOCATIONS.items():
-
-        key_normalized = normalize_text(
-            key
-        )
-
-        if key_normalized in normalized:
-
-            result = dict(info)
-
-            result["type"] = (
-                result.get(
-                    "type",
-                    "locality"
-                )
-            )
-
-            result["confidence"] = "high"
-
-            results.append(result)
-
-    return _remove_duplicate_locations(
-        results
-    )
+    return None
 
 
-# ============================================================
-# ADDRESS SIGNALS
-# ============================================================
+def find_known_districts(text: str) -> list[tuple[str, str]]:
+    value = normalize_place(text)
+    found: list[tuple[str, str]] = []
 
-def detect_address_signals(
-    customer_message: str
-) -> list[str]:
-    """
-    Detect whether customer message contains
-    address/location language.
-    """
-
-    normalized = normalize_text(
-        customer_message
-    )
-
-    found = []
-
-    for term, meaning in ADDRESS_TERMS.items():
-
-        if term in normalized:
-
-            found.append(
-                f"{term} = {meaning}"
-            )
+    for region, districts in COMMON_DISTRICTS.items():
+        for district in districts:
+            if normalize_place(district) in value:
+                found.append((district, region))
 
     return found
 
 
-# ============================================================
-# SALES LANGUAGE SIGNALS
-# ============================================================
+def get_tanzania_time() -> datetime:
+    """Always returns the actual current time in Tanzania timezone."""
+    return datetime.now(TZ_TANZANIA)
 
-def detect_sales_signals(
-    customer_message: str
-) -> list[str]:
-    """
-    Detect common Tanzanian sales expressions.
-    """
 
-    normalized = normalize_text(
-        customer_message
+def get_tanzania_time_context() -> str:
+    now = get_tanzania_time()
+
+    weekdays = [
+        "Jumatatu", "Jumanne", "Jumatano", "Alhamisi",
+        "Ijumaa", "Jumamosi", "Jumapili",
+    ]
+
+    months = [
+        "Januari", "Februari", "Machi", "Aprili", "Mei", "Juni",
+        "Julai", "Agosti", "Septemba", "Oktoba", "Novemba", "Desemba",
+    ]
+
+    return (
+        "TANZANIA REAL-TIME CLOCK\n"
+        f"- Tarehe: {now.day} {months[now.month - 1]} {now.year}\n"
+        f"- Siku: {weekdays[now.weekday()]}\n"
+        f"- Saa ya Tanzania: {now.strftime('%H:%M:%S')}\n"
+        f"- Timezone: Africa/Dar_es_Salaam (UTC+03:00)\n"
+        "- Tanzania mainland hutumia UTC+3 na haina daylight-saving time.\n"
     )
 
-    found = []
 
-    for phrase, meaning in TANZANIAN_SALES_LANGUAGE.items():
+def _region_context() -> str:
+    lines = ["TANZANIA ADMINISTRATIVE GEOGRAPHY"]
 
-        if normalize_text(phrase) in normalized:
-
-            found.append(
-                f"{phrase} = {meaning}"
-            )
-
-    return found
-
-
-# ============================================================
-# REMOVE DUPLICATES
-# ============================================================
-
-def _remove_duplicate_locations(
-    locations: list[dict]
-) -> list[dict]:
-
-    unique = []
-
-    seen = set()
-
-    for location in locations:
-
-        key = (
-            location.get("name"),
-            location.get("type"),
-            location.get("region"),
-        )
-
-        if key not in seen:
-
-            seen.add(key)
-
-            unique.append(
-                location
-            )
-
-    return unique
-
-
-# ============================================================
-# TANZANIA CONTEXT FOR AI
-# ============================================================
-
-def get_tanzania_context(
-    customer_message: str
-) -> str:
-    """
-    Generate only the relevant Tanzania knowledge
-    for the current customer message.
-
-    This keeps the AI prompt small and efficient.
-    """
-
-    locations = find_known_locations(
-        customer_message
-    )
-
-    address_signals = detect_address_signals(
-        customer_message
-    )
-
-    sales_signals = detect_sales_signals(
-        customer_message
-    )
-
-    lines = []
-
-    lines.append(
-        COUNTRY_CONTEXT.strip()
-    )
-
-    # Known locations
-    if locations:
-
-        lines.append(
-            "\nRECOGNIZED TANZANIAN LOCATIONS:"
-        )
-
-        for location in locations:
-
-            name = location.get(
-                "name",
-                ""
-            )
-
-            location_type = location.get(
-                "type",
-                ""
-            )
-
-            region = location.get(
-                "region",
-                ""
-            )
-
-            line = (
-                f"- {name}"
-                f" | Type: {location_type}"
-            )
-
-            if region:
-                line += (
-                    f" | Region/area: {region}"
-                )
-
-            lines.append(line)
-
-    # Address signals
-    if address_signals:
-
-        lines.append(
-            "\nADDRESS SIGNALS:"
-        )
-
-        for signal in address_signals:
-
+    for region, postcode in REGIONS.items():
+        districts = COMMON_DISTRICTS.get(region, [])
+        if districts:
             lines.append(
-                f"- {signal}"
+                f"- {region} (postcode base {postcode}): "
+                + ", ".join(districts)
             )
+        else:
+            lines.append(f"- {region} (postcode base {postcode})")
 
-    # Sales language
-    if sales_signals:
+    lines.append("")
+    lines.append(
+        "NBS geographic hierarchy: Region → District → Ward/Shehia "
+        "→ Village/Mtaa → Enumeration Area."
+    )
+    lines.append(
+        "Do not invent a ward, village, street or postcode. "
+        "If a lower-level place is not verified, say that it needs confirmation."
+    )
 
-        lines.append(
-            "\nTANZANIAN SALES LANGUAGE:"
+    return "\n".join(lines)
+
+
+def get_tanzania_context(text: str = "") -> str:
+    """
+    Returns compact, relevant Tanzania context for the current customer
+    message. It is deliberately much smaller than dumping a national
+    gazetteer into every Gemini request.
+    """
+    parts = [
+        get_tanzania_time_context(),
+        _region_context(),
+    ]
+
+    region = resolve_region(text)
+    if region:
+        parts.append(f"CURRENTLY DETECTED REGION: {region}")
+
+    districts = find_known_districts(text)
+    if districts:
+        parts.append(
+            "DETECTED DISTRICT(S): "
+            + ", ".join(f"{district} ({region})" for district, region in districts)
         )
 
-        for signal in sales_signals:
+    return "\n\n".join(parts)
 
-            lines.append(
-                f"- {signal}"
-            )
 
-    lines.append(
-        """
-GEOGRAPHIC SAFETY RULES:
+def get_tanzania_place_hint(text: str) -> str:
+    region = resolve_region(text)
+    districts = find_known_districts(text)
 
-- Recognizing a place name does not mean the AI knows
-  the exact distance, route, delivery price or travel time.
+    if not region and not districts:
+        return ""
 
-- Never invent delivery fees.
-
-- Never invent travel time.
-
-- Never claim a specific road route unless route data
-  is actually available.
-
-- If the customer gives an incomplete location,
-  ask for the missing information when necessary.
-
-- If a place is not recognized by this local knowledge
-  layer, do not automatically say the place does not exist.
-
-- The merchant's own delivery coverage and business
-  information always take priority for sales decisions.
-
-- A customer can mention a region, district, ward,
-  village, street, landmark, building or informal/local
-  place name.
-
-- Treat location words as possible geographic context,
-  not automatically as a request for navigation.
-"""
-    )
+    lines = ["Verified Tanzania place hints:"]
+    if region:
+        lines.append(f"- Region: {region}")
+    for district, district_region in districts:
+        lines.append(f"- District: {district} (Region: {district_region})")
 
     return "\n".join(lines)
