@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from typing import Optional, List
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, create_engine, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 from pydantic import BaseModel, EmailStr, Field
 
@@ -101,6 +101,24 @@ class Conversation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     customer: Mapped[Customer] = relationship(back_populates="conversations")
+
+
+
+class SubscriptionPayment(Base):
+    __tablename__ = "subscription_payments"
+    __table_args__ = (UniqueConstraint("payment_reference", name="uq_subscription_payment_reference"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.user_id"), index=True)
+    order_reference: Mapped[str] = mapped_column(String(120), index=True)
+    payment_reference: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    plan_code: Mapped[str] = mapped_column(String(30))
+    amount: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String(10), default="TZS")
+    status: Mapped[str] = mapped_column(String(30), default="PENDING")
+    customer_phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, joinedload
 from ai_engine import generate_ai_sales_response, generate_ai_sales_response_stream
 from models import (
     Base, ChatRequest, Conversation, Customer, LoginRequest, Merchant, MerchantPaymentInfo, Product,
-    ProductCreate, ProductUpdate, ProfileUpdate, SessionLocal, SignupRequest, engine,
+    ProductCreate, ProductUpdate, ProfileUpdate, SessionLocal, SignupRequest, SubscriptionPayment, engine,
 )
 
 app = FastAPI(title="AI Sales Assistant Tanzania", version="2.0.0")
@@ -491,6 +491,107 @@ def chat_stream(payload: ChatRequest, authorization: str | None = Header(default
             local_db.close()
     return StreamingResponse(generator(), media_type="text/plain; charset=utf-8", headers={"Cache-Control": "no-cache"})
 
+
+def _canonicalize_payload(value):
+    if isinstance(value, dict):
+        return {key: _canonicalize_payload(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        return [_canonicalize_payload(item) for item in value]
+    return value
+
+
+def _validate_clickpesa_checksum(payload: dict) -> bool:
+    checksum_key = os.getenv("CLICKPESA_CHECKSUM_KEY", "").strip()
+    if not checksum_key:
+        return True
+    received = str(payload.get("checksum") or "").strip()
+    if not received:
+        return False
+    body = {k: v for k, v in payload.items() if k not in {"checksum", "checksumMethod"}}
+    canonical = _canonicalize_payload(body)
+    serialized = json.dumps(canonical, separators=(",", ":"), ensure_ascii=False)
+    computed = hmac.new(checksum_key.encode("utf-8"), serialized.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(computed, received)
+
+
+def _plan_from_payment(amount: float):
+    if abs(amount - 2000) < 0.01:
+        return "daily", 1
+    if abs(amount - 50000) < 0.01:
+        return "monthly", 30
+    return None, None
+
+
+@app.post("/webhook/clickpesa/payment-received")
+async def clickpesa_payment_received(payload: dict, db: Session = Depends(get_db)):
+    if not _validate_clickpesa_checksum(payload):
+        raise HTTPException(status_code=401, detail="Invalid ClickPesa checksum.")
+
+    event = str(payload.get("event") or "").strip().upper()
+    data = payload.get("data") or {}
+    status = str(data.get("status") or "").strip().upper()
+    if event != "PAYMENT RECEIVED" or status != "SUCCESS":
+        return {"status": "ignored"}
+
+    order_reference = str(data.get("orderReference") or "").strip()
+    payment_reference = str(data.get("paymentReference") or data.get("id") or "").strip()
+    currency = str(data.get("collectedCurrency") or "TZS").strip().upper()
+    try:
+        amount = float(data.get("collectedAmount") or 0)
+    except (TypeError, ValueError):
+        amount = 0
+
+    if not order_reference or not payment_reference or currency != "TZS":
+        raise HTTPException(status_code=400, detail="Incomplete ClickPesa payment payload.")
+
+    parts = order_reference.split("|")
+    if len(parts) != 3 or parts[0] != "SUB":
+        raise HTTPException(status_code=400, detail="Invalid subscription order reference.")
+
+    merchant_id, requested_plan = parts[1], parts[2].lower()
+    plan_code, days = _plan_from_payment(amount)
+    if not plan_code or requested_plan != plan_code:
+        raise HTTPException(status_code=400, detail="Payment amount does not match subscription plan.")
+
+    merchant = db.query(Merchant).filter(Merchant.user_id == merchant_id).first()
+    if not merchant:
+        raise HTTPException(status_code=404, detail="Merchant not found.")
+
+    existing = db.query(SubscriptionPayment).filter(SubscriptionPayment.payment_reference == payment_reference).first()
+    if existing:
+        return {"status": "already_processed", "payment_reference": payment_reference}
+
+    from datetime import timedelta
+    now = datetime.utcnow()
+    current_expiry = merchant.expiry_date
+    expiry = (current_expiry + timedelta(days=days)) if current_expiry and current_expiry > now else (now + timedelta(days=days))
+
+    merchant.subscription_status = "Active"
+    merchant.plan_code = plan_code
+    merchant.expiry_date = expiry
+    merchant.message_limit = None
+
+    customer = data.get("customer") or {}
+    db.add(SubscriptionPayment(
+        merchant_id=merchant.user_id,
+        order_reference=order_reference,
+        payment_reference=payment_reference,
+        plan_code=plan_code,
+        amount=amount,
+        currency=currency,
+        status="SUCCESS",
+        customer_phone=str(customer.get("customerPhoneNumber") or "").strip() or None,
+        paid_at=now,
+    ))
+    db.commit()
+
+    return {
+        "status": "success",
+        "payment_reference": payment_reference,
+        "merchant_id": merchant.user_id,
+        "plan_code": plan_code,
+        "expiry_date": merchant.expiry_date.isoformat() if merchant.expiry_date else None,
+    }
 
 @app.post("/webhook/message")
 def webhook_message(merchant_id: str, platform: str, customer_message: str, customer_key: str | None = None, db: Session = Depends(get_db)):
