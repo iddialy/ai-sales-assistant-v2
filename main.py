@@ -12,6 +12,8 @@ from typing import Generator
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from urllib.request import Request as UrlRequest, urlopen
+from urllib.error import HTTPError, URLError
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session, joinedload
 
@@ -329,6 +331,78 @@ def me(authorization: str | None = Header(default=None), db: Session = Depends(g
     return public_merchant(get_current_merchant(authorization, db))
 
 
+def _create_clickpesa_checkout(merchant: Merchant, plan_code: str, db: Session):
+    api_token = os.getenv("CLICKPESA_API_TOKEN", "").strip()
+    if not api_token:
+        raise HTTPException(503, detail="ClickPesa API token haijawekwa kwenye Render Environment Variables.")
+
+    checksum_key = os.getenv("CLICKPESA_CHECKSUM_KEY", "").strip()
+    if not checksum_key:
+        raise HTTPException(503, detail="CLICKPESA_CHECKSUM_KEY haijawekwa kwenye Render Environment Variables.")
+
+    plans = {"daily": (2000, "1-day Sales Assistant subscription"), "monthly": (50000, "30-day Sales Assistant subscription")}
+    if plan_code not in plans:
+        raise HTTPException(422, detail="Kifurushi hakitambuliki.")
+
+    amount, description = plans[plan_code]
+    order_reference = f"SUB|{merchant.user_id}|{plan_code}"
+    # Make every attempt unique while keeping the plan/merchant reference parseable.
+    order_reference = f"{order_reference}|{uuid.uuid4().hex[:10]}"
+
+    payload = {
+        "totalPrice": str(amount),
+        "orderReference": order_reference,
+        "orderCurrency": "TZS",
+        "customerName": merchant.business_name,
+        "customerEmail": merchant.email,
+        "customerPhone": merchant.phone_number.replace("+", "").replace(" ", ""),
+        "description": description,
+    }
+    canonical = _canonicalize_payload(payload)
+    serialized = json.dumps(canonical, separators=(",", ":"), ensure_ascii=False)
+    payload["checksum"] = hmac.new(checksum_key.encode("utf-8"), serialized.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    # Keep a local pending record so the webhook can reconcile the real payment reference.
+    db.add(SubscriptionPayment(
+        merchant_id=merchant.user_id,
+        order_reference=order_reference,
+        payment_reference="PENDING:" + uuid.uuid4().hex,
+        plan_code=plan_code,
+        amount=amount,
+        currency="TZS",
+        status="PENDING",
+        customer_phone=merchant.phone_number,
+    ))
+    db.commit()
+
+    req = UrlRequest(
+        "https://api.clickpesa.com/third-parties/checkout-link/generate-checkout-url",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Authorization": f"Bearer {api_token}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(req, timeout=25) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(502, detail=f"ClickPesa checkout error: {detail[:500]}")
+    except URLError as exc:
+        raise HTTPException(502, detail=f"ClickPesa haijafikika: {exc.reason}")
+
+    checkout_link = result.get("checkoutLink")
+    if not checkout_link:
+        raise HTTPException(502, detail="ClickPesa haikurudisha checkoutLink.")
+    return {"checkoutLink": checkout_link, "orderReference": order_reference, "planCode": plan_code, "amount": amount}
+
+
+@app.post("/payments/clickpesa/checkout")
+def create_clickpesa_checkout(payload: dict, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    merchant = get_current_merchant(authorization, db)
+    plan_code = str(payload.get("plan_code") or "").strip().lower()
+    return _create_clickpesa_checkout(merchant, plan_code, db)
+
+
 @app.put("/profile")
 def update_profile(payload: ProfileUpdate, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
     merchant = get_current_merchant(authorization, db)
@@ -545,7 +619,7 @@ async def clickpesa_payment_received(payload: dict, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail="Incomplete ClickPesa payment payload.")
 
     parts = order_reference.split("|")
-    if len(parts) != 3 or parts[0] != "SUB":
+    if len(parts) < 3 or parts[0] != "SUB":
         raise HTTPException(status_code=400, detail="Invalid subscription order reference.")
 
     merchant_id, requested_plan = parts[1], parts[2].lower()
@@ -561,6 +635,10 @@ async def clickpesa_payment_received(payload: dict, db: Session = Depends(get_db
     if existing:
         return {"status": "already_processed", "payment_reference": payment_reference}
 
+    pending = (db.query(SubscriptionPayment)
+               .filter(SubscriptionPayment.order_reference == order_reference, SubscriptionPayment.merchant_id == merchant.user_id, SubscriptionPayment.status == "PENDING")
+               .order_by(SubscriptionPayment.id.desc()).first())
+
     from datetime import timedelta
     now = datetime.utcnow()
     current_expiry = merchant.expiry_date
@@ -572,17 +650,26 @@ async def clickpesa_payment_received(payload: dict, db: Session = Depends(get_db
     merchant.message_limit = None
 
     customer = data.get("customer") or {}
-    db.add(SubscriptionPayment(
-        merchant_id=merchant.user_id,
-        order_reference=order_reference,
-        payment_reference=payment_reference,
-        plan_code=plan_code,
-        amount=amount,
-        currency=currency,
-        status="SUCCESS",
-        customer_phone=str(customer.get("customerPhoneNumber") or "").strip() or None,
-        paid_at=now,
-    ))
+    if pending:
+        pending.payment_reference = payment_reference
+        pending.plan_code = plan_code
+        pending.amount = amount
+        pending.currency = currency
+        pending.status = "SUCCESS"
+        pending.customer_phone = str(customer.get("customerPhoneNumber") or "").strip() or pending.customer_phone
+        pending.paid_at = now
+    else:
+        db.add(SubscriptionPayment(
+            merchant_id=merchant.user_id,
+            order_reference=order_reference,
+            payment_reference=payment_reference,
+            plan_code=plan_code,
+            amount=amount,
+            currency=currency,
+            status="SUCCESS",
+            customer_phone=str(customer.get("customerPhoneNumber") or "").strip() or None,
+            paid_at=now,
+        ))
     db.commit()
 
     return {

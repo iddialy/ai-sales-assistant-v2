@@ -98,6 +98,7 @@
                 <p>✓ Product & business knowledge</p>
                 <p>✓ Customer conversations</p>
               </div>
+              <button data-plan="daily" class="payPlanBtn mt-5 w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold">💳 Lipa TSh 2,000</button>
             </div>
             <div class="border-2 border-blue-700 rounded-2xl p-5 relative">
               <span class="absolute -top-3 right-4 bg-blue-700 text-white text-xs font-bold px-3 py-1 rounded-full">RECOMMENDED</span>
@@ -110,9 +111,12 @@
                 <p>✓ Customer conversations</p>
                 <p>✓ Best value for daily business use</p>
               </div>
+              <button data-plan="monthly" class="payPlanBtn mt-5 w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded-xl font-bold">💳 Lipa TSh 50,000</button>
             </div>
           </div>
         </div>
+
+        <div id="paymentMessage" class="hidden p-4 rounded-xl text-sm"></div>
 
         <div class="bg-white rounded-2xl shadow p-5">
           <div class="flex items-center justify-between gap-3 mb-4"><h2 class="font-bold text-lg">Product Management</h2><button id="cancelEdit" class="hidden text-sm px-3 py-2 bg-slate-100 rounded-lg">Cancel Edit</button></div>
@@ -225,6 +229,27 @@ $("profileForm").onsubmit=async e=>{e.preventDefault();try{merchant=await api('/
 
 async function fileToDataUrl(file){if(!file)return null;if(file.size>2*1024*1024)throw new Error('Picha iwe chini ya 2MB.');return await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(new Error('Imeshindikana kusoma picha.'));r.readAsDataURL(file);});}
 $("productImage").onchange=async()=>{try{const file=$("productImage").files[0];if(!file){$("imagePreview").classList.add('hidden');return;}const url=await fileToDataUrl(file);$("imagePreview").src=url;$("imagePreview").classList.remove('hidden');}catch(err){showMessage('pageMessage',err.message);$("productImage").value='';}};
+async function startPayment(planCode, button){
+  const original=button.textContent;
+  button.disabled=true;
+  button.textContent='Inafungua malipo...';
+  try{
+    const data=await api('/payments/clickpesa/checkout',{method:'POST',body:JSON.stringify({plan_code:planCode})});
+    if(!data.checkoutLink) throw new Error('ClickPesa haikurudisha link ya malipo.');
+    window.location.href=data.checkoutLink;
+  }catch(err){
+    showMessage('paymentMessage',err.message||'Malipo yameshindikana.');
+    $('paymentMessage').scrollIntoView({behavior:'smooth',block:'center'});
+  }finally{
+    button.disabled=false;
+    button.textContent=original;
+  }
+}
+
+document.querySelectorAll('.payPlanBtn').forEach(btn=>{
+  btn.addEventListener('click',()=>startPayment(btn.dataset.plan,btn));
+});
+
 $("productForm").onsubmit=async e=>{e.preventDefault();try{const id=$("productId").value;const imageFile=$("productImage").files[0];const current=merchant.products.find(p=>p.product_id===id);const image=imageFile?await fileToDataUrl(imageFile):(current?.image_url||null);const body={product_name:$("productName").value,category:$("productCategory").value||null,description:$("productDescription").value,wholesale_price:$("wholesalePrice").value===''?null:Number($("wholesalePrice").value),retail_price:$("retailPrice").value===''?null:Number($("retailPrice").value),stock_quantity:Number($("stockQuantity").value||0),status:$("productStatus").value,image_url:image};if(!body.retail_price&&!body.wholesale_price)throw new Error('Weka wholesale au retail price.');const d=await api(id?`/products/${encodeURIComponent(id)}`:'/products',{method:id?'PUT':'POST',body:JSON.stringify(body)});if(id){const i=merchant.products.findIndex(p=>p.product_id===id);merchant.products[i]=d;}else merchant.products.push(d);renderProducts(merchant.products);updateMetrics();resetProductForm();showMessage('pageMessage','Bidhaa imehifadhiwa.',true);setTimeout(()=>clearMessage('pageMessage'),2500);}catch(err){showMessage('pageMessage',err.message);}};
 function resetProductForm(){$("productForm").reset();$("productId").value='';$("stockQuantity").value=0;$("cancelEdit").classList.add('hidden');$("productSubmit").textContent='Hifadhi Bidhaa';$("imagePreview").classList.add('hidden');$("imagePreview").src='';}
 function startEdit(id){const p=merchant.products.find(x=>x.product_id===id);if(!p)return;$("productId").value=p.product_id;$("productName").value=p.product_name||'';$("productCategory").value=p.category||'';$("wholesalePrice").value=p.wholesale_price??'';$("retailPrice").value=p.retail_price??'';$("stockQuantity").value=p.stock_quantity??0;$("productStatus").value=p.status||'IPO';$("productDescription").value=p.description||'';$("productImage").value='';if(p.image_url){$("imagePreview").src=p.image_url;$("imagePreview").classList.remove('hidden');}$("cancelEdit").classList.remove('hidden');$("productSubmit").textContent='Update Bidhaa';window.scrollTo({top:document.querySelector('#productForm').getBoundingClientRect().top+window.scrollY-80,behavior:'smooth'});}
