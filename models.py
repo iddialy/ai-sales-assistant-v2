@@ -42,38 +42,6 @@ class Merchant(Base):
     )
 
 
-class Customer(Base):
-    __tablename__ = "customers"
-
-    customer_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.user_id"), index=True)
-    name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
-    email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
-    platform: Mapped[str] = mapped_column(String(50), default="website")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    last_contact_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    merchant: Mapped[Merchant] = relationship(back_populates="customers")
-    conversations: Mapped[List["Conversation"]] = relationship(
-        back_populates="customer", cascade="all, delete-orphan", order_by="Conversation.created_at"
-    )
-
-
-class Conversation(Base):
-    __tablename__ = "conversations"
-
-    conversation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    customer_id: Mapped[str] = mapped_column(ForeignKey("customers.customer_id"), index=True)
-    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.user_id"), index=True)
-    user_message: Mapped[str] = mapped_column(Text)
-    ai_reply: Mapped[str] = mapped_column(Text)
-    platform: Mapped[str] = mapped_column(String(50), default="website")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-    customer: Mapped[Customer] = relationship(back_populates="conversations")
-
-
 class MerchantPaymentInfo(Base):
     __tablename__ = "merchant_payment_info"
 
@@ -99,6 +67,40 @@ class Product(Base):
     status: Mapped[str] = mapped_column(String(20), default="IPO")
     image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     merchant: Mapped[Merchant] = relationship(back_populates="products")
+
+
+class Customer(Base):
+    __tablename__ = "customers"
+
+    customer_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.user_id"), index=True)
+    name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    platform: Mapped[str] = mapped_column(String(50), default="website")
+    external_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    last_message_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    merchant: Mapped[Merchant] = relationship(back_populates="customers")
+    conversations: Mapped[List["Conversation"]] = relationship(
+        back_populates="customer", cascade="all, delete-orphan"
+    )
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    conversation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.user_id"), index=True)
+    customer_id: Mapped[str] = mapped_column(ForeignKey("customers.customer_id"), index=True)
+    platform: Mapped[str] = mapped_column(String(50), default="website")
+    customer_message: Mapped[str] = mapped_column(Text)
+    ai_reply: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    customer: Mapped[Customer] = relationship(back_populates="conversations")
+
 
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./salesai.db")
@@ -155,3 +157,4 @@ class ProfileUpdate(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=10000)
+    customer_key: Optional[str] = Field(default=None, max_length=255)
