@@ -79,7 +79,8 @@ class Customer(Base):
     email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
     platform: Mapped[str] = mapped_column(String(50), default="website")
     external_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    last_message_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_message_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     merchant: Mapped[Merchant] = relationship(back_populates="customers")

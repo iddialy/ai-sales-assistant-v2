@@ -152,6 +152,7 @@ def public_customer(c: Customer):
         "email": c.email,
         "platform": c.platform,
         "last_message_at": c.last_message_at.isoformat() if c.last_message_at else None,
+        "last_seen_at": c.last_seen_at.isoformat() if c.last_seen_at else None,
         "created_at": c.created_at.isoformat() if c.created_at else None,
     }
 
@@ -180,10 +181,13 @@ def get_or_create_customer(db: Session, merchant_id: str, customer_key: str | No
             platform=platform,
             external_key=key or None,
             last_message_at=datetime.utcnow(),
+            last_seen_at=datetime.utcnow(),
         )
         db.add(customer)
     else:
-        customer.last_message_at = datetime.utcnow()
+        now = datetime.utcnow()
+        customer.last_message_at = now
+        customer.last_seen_at = now
     return customer
 
 def init_database():
@@ -204,7 +208,7 @@ def init_database():
         "customers": {
             "name": "VARCHAR(200)", "phone": "VARCHAR(50)", "email": "VARCHAR(320)",
             "platform": "VARCHAR(50)", "external_key": "VARCHAR(255)",
-            "last_message_at": "TIMESTAMP", "created_at": "TIMESTAMP",
+            "last_message_at": "TIMESTAMP", "last_seen_at": "TIMESTAMP", "created_at": "TIMESTAMP",
         },
         "conversations": {
             "platform": "VARCHAR(50)", "customer_message": "TEXT", "ai_reply": "TEXT", "created_at": "TIMESTAMP",
@@ -239,6 +243,24 @@ def init_database():
                     conn.execute(text(
                         "UPDATE customers SET last_message_at = COALESCE(last_message_at, last_contact_at)"
                     ))
+
+                # The production customers table already has last_seen_at as a
+                # NOT NULL column. Make sure older rows and newly-created rows
+                # always receive a value before Customer is queried/inserted.
+                fresh_inspector = inspect(conn)
+                customer_cols = {c["name"] for c in fresh_inspector.get_columns("customers")}
+                if "last_seen_at" not in customer_cols:
+                    conn.execute(text("ALTER TABLE customers ADD COLUMN last_seen_at TIMESTAMP"))
+                    fresh_inspector = inspect(conn)
+                    customer_cols = {c["name"] for c in fresh_inspector.get_columns("customers")}
+                if "last_seen_at" in customer_cols:
+                    conn.execute(text(
+                        "UPDATE customers SET last_seen_at = COALESCE(last_seen_at, last_message_at, last_contact_at, created_at, CURRENT_TIMESTAMP)"
+                    ))
+                    # PostgreSQL is the production database. Enforce NOT NULL
+                    # only after all existing rows have been backfilled.
+                    if conn.dialect.name == "postgresql":
+                        conn.execute(text("ALTER TABLE customers ALTER COLUMN last_seen_at SET NOT NULL"))
             except Exception:
                 pass
 
@@ -403,7 +425,9 @@ def chat(payload: ChatRequest, authorization: str | None = Header(default=None),
     customer = get_or_create_customer(db, merchant.user_id, payload.customer_key, "website")
     try:
         reply = generate_ai_sales_response(merchant, payload.message, "website")
-        customer.last_message_at = datetime.utcnow()
+        now = datetime.utcnow()
+        customer.last_message_at = now
+        customer.last_seen_at = now
         db.add(Conversation(
             conversation_id="cv_" + uuid.uuid4().hex,
             merchant_id=merchant.user_id,
@@ -445,7 +469,9 @@ def chat_stream(payload: ChatRequest, authorization: str | None = Header(default
             reply = "".join(result_parts)
             c = local_db.query(Customer).filter(Customer.customer_id == customer_id).first()
             if c:
-                c.last_message_at = datetime.utcnow()
+                now = datetime.utcnow()
+                c.last_message_at = now
+                c.last_seen_at = now
             local_db.add(Conversation(
                 conversation_id="cv_" + uuid.uuid4().hex,
                 merchant_id=merchant_id,
