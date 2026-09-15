@@ -40,6 +40,9 @@ class Merchant(Base):
     customers: Mapped[List["Customer"]] = relationship(
         back_populates="merchant", cascade="all, delete-orphan"
     )
+    social_connections: Mapped[List["SocialConnection"]] = relationship(
+        back_populates="merchant", cascade="all, delete-orphan"
+    )
 
 
 class MerchantPaymentInfo(Base):
@@ -102,6 +105,25 @@ class Conversation(Base):
 
     customer: Mapped[Customer] = relationship(back_populates="conversations")
 
+
+
+class SocialConnection(Base):
+    __tablename__ = "social_connections"
+    __table_args__ = (UniqueConstraint("merchant_id", "provider", name="uq_social_connection_merchant_provider"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    merchant_id: Mapped[str] = mapped_column(ForeignKey("merchants.user_id"), index=True)
+    provider: Mapped[str] = mapped_column(String(30))
+    account_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    account_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="CONNECTED")
+    access_token_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    refresh_token_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    merchant: Mapped[Merchant] = relationship(back_populates="social_connections")
 
 
 class SubscriptionPayment(Base):

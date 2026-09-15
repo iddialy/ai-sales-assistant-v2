@@ -6,21 +6,23 @@ import os
 import secrets
 import time
 import uuid
+from urllib.parse import urlencode, quote
 from datetime import datetime
 from typing import Generator
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, RedirectResponse, HTMLResponse
 from urllib.request import Request as UrlRequest, urlopen
 from urllib.error import HTTPError, URLError
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session, joinedload
+from cryptography.fernet import Fernet, InvalidToken
 
 from ai_engine import generate_ai_sales_response, generate_ai_sales_response_stream
 from models import (
     Base, ChatRequest, Conversation, Customer, LoginRequest, Merchant, MerchantPaymentInfo, Product,
-    ProductCreate, ProductUpdate, ProfileUpdate, SessionLocal, SignupRequest, SubscriptionPayment, engine,
+    ProductCreate, ProductUpdate, ProfileUpdate, SessionLocal, SignupRequest, SubscriptionPayment, SocialConnection, engine,
 )
 
 app = FastAPI(title="AI Sales Assistant Tanzania", version="2.0.0")
@@ -105,6 +107,80 @@ def public_product(p: Product):
     }
 
 
+SOCIAL_FRONTEND_URL = os.getenv("SOCIAL_FRONTEND_URL", "https://iddialy.github.io/ai-sales-assistant-v2/")
+SOCIAL_STATE_TTL = 10 * 60
+
+
+def _social_cipher():
+    raw = os.getenv("SOCIAL_TOKEN_ENCRYPTION_KEY", "").strip()
+    if raw:
+        try:
+            return Fernet(raw.encode())
+        except Exception:
+            pass
+    key = base64.urlsafe_b64encode(hashlib.sha256(TOKEN_SECRET.encode("utf-8")).digest())
+    return Fernet(key)
+
+
+def _encrypt_social_token(value: str | None) -> str | None:
+    if not value:
+        return None
+    return _social_cipher().encrypt(value.encode("utf-8")).decode("utf-8")
+
+
+def _decrypt_social_token(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        return _social_cipher().decrypt(value.encode("utf-8")).decode("utf-8")
+    except InvalidToken:
+        return None
+
+
+def _make_social_state(merchant_id: str, provider: str) -> str:
+    payload = {"merchant_id": merchant_id, "provider": provider, "exp": int(time.time()) + SOCIAL_STATE_TTL, "nonce": secrets.token_urlsafe(12)}
+    raw = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("=")
+    sig = hmac.new(TOKEN_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()
+    return f"{raw}.{sig}"
+
+
+def _read_social_state(state: str) -> dict:
+    try:
+        raw, sig = state.split(".", 1)
+        expected = hmac.new(TOKEN_SECRET.encode(), raw.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, sig):
+            raise ValueError
+        payload = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)).decode())
+        if int(payload.get("exp", 0)) < int(time.time()):
+            raise ValueError
+        if payload.get("provider") not in {"whatsapp", "facebook", "instagram", "tiktok"}:
+            raise ValueError
+        return payload
+    except Exception:
+        raise HTTPException(400, "Social connection request si sahihi au ime-expire.")
+
+
+def _social_public(c: SocialConnection):
+    return {
+        "provider": c.provider,
+        "account_name": c.account_name,
+        "account_id": c.account_id,
+        "status": c.status,
+        "connected": c.status == "CONNECTED",
+        "token_expires_at": c.token_expires_at.isoformat() if c.token_expires_at else None,
+        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+    }
+
+
+def _social_config_error(provider: str):
+    if provider in {"whatsapp", "facebook", "instagram"}:
+        if not os.getenv("META_APP_ID") or not os.getenv("META_APP_SECRET"):
+            return "Meta App ID/Secret hazijawekwa kwenye Render."
+    if provider == "tiktok":
+        if not os.getenv("TIKTOK_CLIENT_KEY") or not os.getenv("TIKTOK_CLIENT_SECRET"):
+            return "TikTok Client Key/Secret hazijawekwa kwenye Render."
+    return None
+
 def public_merchant(merchant: Merchant):
     payment = merchant.payment_info
     return {
@@ -127,6 +203,7 @@ def public_merchant(merchant: Merchant):
             "bank_account": payment.bank_account if payment else None,
             "phone_payment": payment.phone_payment if payment else None,
         },
+        "social_connections": [_social_public(c) for c in merchant.social_connections],
         "products": [public_product(p) for p in merchant.products],
     }
 
@@ -137,7 +214,7 @@ def get_current_merchant(authorization: str | None, db: Session) -> Merchant:
     user_id = decode_token(authorization.split(" ", 1)[1].strip())
     merchant = (
         db.query(Merchant)
-        .options(joinedload(Merchant.payment_info), joinedload(Merchant.products))
+        .options(joinedload(Merchant.payment_info), joinedload(Merchant.products), joinedload(Merchant.social_connections))
         .filter(Merchant.user_id == user_id)
         .first()
     )
@@ -214,6 +291,12 @@ def init_database():
         },
         "conversations": {
             "platform": "VARCHAR(50)", "customer_message": "TEXT", "ai_reply": "TEXT", "created_at": "TIMESTAMP",
+        },
+        "social_connections": {
+            "merchant_id": "VARCHAR(64)", "provider": "VARCHAR(30)", "account_name": "VARCHAR(255)",
+            "account_id": "VARCHAR(255)", "status": "VARCHAR(30)", "access_token_encrypted": "TEXT",
+            "refresh_token_encrypted": "TEXT", "token_expires_at": "TIMESTAMP", "created_at": "TIMESTAMP",
+            "updated_at": "TIMESTAMP",
         },
     }
     with engine.begin() as conn:
@@ -317,7 +400,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     email = str(payload.email).lower().strip()
     merchant = (
         db.query(Merchant)
-        .options(joinedload(Merchant.payment_info), joinedload(Merchant.products))
+        .options(joinedload(Merchant.payment_info), joinedload(Merchant.products), joinedload(Merchant.social_connections))
         .filter(Merchant.email == email)
         .first()
     )
@@ -401,6 +484,132 @@ def create_clickpesa_checkout(payload: dict, authorization: str | None = Header(
     merchant = get_current_merchant(authorization, db)
     plan_code = str(payload.get("plan_code") or "").strip().lower()
     return _create_clickpesa_checkout(merchant, plan_code, db)
+
+
+@app.get("/social/connections")
+def list_social_connections(authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    merchant = get_current_merchant(authorization, db)
+    rows = db.query(SocialConnection).filter(SocialConnection.merchant_id == merchant.user_id).all()
+    return {"connections": [_social_public(c) for c in rows]}
+
+
+@app.get("/social/connect/{provider}")
+def social_connect(provider: str, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    merchant = get_current_merchant(authorization, db)
+    provider = provider.lower().strip()
+    if provider not in {"whatsapp", "facebook", "instagram", "tiktok"}:
+        raise HTTPException(422, "Social network haijatambuliwa.")
+    config_error = _social_config_error(provider)
+    if config_error:
+        raise HTTPException(503, config_error)
+    state = _make_social_state(merchant.user_id, provider)
+    if provider in {"whatsapp", "facebook", "instagram"}:
+        redirect_uri = os.getenv("META_REDIRECT_URI", "").strip()
+        if not redirect_uri:
+            raise HTTPException(503, "META_REDIRECT_URI haijawekwa kwenye Render.")
+        scope = "pages_show_list,pages_read_engagement,pages_manage_metadata,pages_messaging,instagram_basic,instagram_manage_messages,business_management,whatsapp_business_management,whatsapp_business_messaging"
+        params = {"client_id": os.getenv("META_APP_ID"), "redirect_uri": redirect_uri, "state": state, "response_type": "code", "scope": scope}
+        return {"authUrl": "https://www.facebook.com/dialog/oauth?" + urlencode(params)}
+    redirect_uri = os.getenv("TIKTOK_REDIRECT_URI", "").strip()
+    if not redirect_uri:
+        raise HTTPException(503, "TIKTOK_REDIRECT_URI haijawekwa kwenye Render.")
+    params = {"client_key": os.getenv("TIKTOK_CLIENT_KEY"), "redirect_uri": redirect_uri, "state": state, "response_type": "code", "scope": "user.info.basic"}
+    return {"authUrl": "https://www.tiktok.com/v2/auth/authorize/?" + urlencode(params)}
+
+
+@app.get("/social/callback/meta")
+def social_callback_meta(code: str | None = None, state: str | None = None, error: str | None = None, error_description: str | None = None, db: Session = Depends(get_db)):
+    if error:
+        return RedirectResponse(f"{SOCIAL_FRONTEND_URL}?social_error={quote(str(error_description or error))}")
+    if not code or not state:
+        return RedirectResponse(f"{SOCIAL_FRONTEND_URL}?social_error=Meta%20callback%20haijakamilika")
+    try:
+        st = _read_social_state(state)
+        if st["provider"] not in {"whatsapp", "facebook", "instagram"}:
+            raise ValueError
+        redirect_uri = os.getenv("META_REDIRECT_URI", "").strip()
+        token_url = "https://graph.facebook.com/oauth/access_token?" + urlencode({"client_id": os.getenv("META_APP_ID"), "client_secret": os.getenv("META_APP_SECRET"), "redirect_uri": redirect_uri, "code": code})
+        with urlopen(UrlRequest(token_url, method="GET"), timeout=25) as response:
+            token_data = json.loads(response.read().decode("utf-8"))
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise ValueError("Meta haikutoa access token.")
+        me_url = "https://graph.facebook.com/me?fields=id,name&access_token=" + urlencode({"x":access_token})[2:]
+        with urlopen(UrlRequest(me_url, method="GET"), timeout=25) as response:
+            me = json.loads(response.read().decode("utf-8"))
+        row = db.query(SocialConnection).filter(SocialConnection.merchant_id == st["merchant_id"], SocialConnection.provider == st["provider"]).first()
+        if not row:
+            row = SocialConnection(merchant_id=st["merchant_id"], provider=st["provider"])
+            db.add(row)
+        row.account_name = me.get("name") or f"{st['provider'].title()} account"
+        row.account_id = str(me.get("id") or "")
+        row.status = "CONNECTED"
+        row.access_token_encrypted = _encrypt_social_token(access_token)
+        row.token_expires_at = None
+        row.updated_at = datetime.utcnow()
+        db.commit()
+        return RedirectResponse(f"{SOCIAL_FRONTEND_URL}?social_connected={st['provider']}")
+    except Exception as exc:
+        return RedirectResponse(f"{SOCIAL_FRONTEND_URL}?social_error={quote(str(exc)[:180])}")
+
+
+@app.get("/social/callback/tiktok")
+def social_callback_tiktok(code: str | None = None, state: str | None = None, error: str | None = None, db: Session = Depends(get_db)):
+    if error:
+        return RedirectResponse(f"{SOCIAL_FRONTEND_URL}?social_error={quote(str(error))}")
+    if not code or not state:
+        return RedirectResponse(f"{SOCIAL_FRONTEND_URL}?social_error=TikTok%20callback%20haijakamilika")
+    try:
+        st = _read_social_state(state)
+        if st["provider"] != "tiktok":
+            raise ValueError
+        redirect_uri = os.getenv("TIKTOK_REDIRECT_URI", "").strip()
+        body = urlencode({"client_key": os.getenv("TIKTOK_CLIENT_KEY"), "client_secret": os.getenv("TIKTOK_CLIENT_SECRET"), "code": code, "grant_type": "authorization_code", "redirect_uri": redirect_uri}).encode()
+        req = UrlRequest("https://open.tiktokapis.com/v2/oauth/token/", data=body, headers={"Content-Type":"application/x-www-form-urlencoded"}, method="POST")
+        with urlopen(req, timeout=25) as response:
+            token_data = json.loads(response.read().decode("utf-8"))
+        access_token = token_data.get("access_token")
+        if not access_token:
+            raise ValueError(token_data.get("error_description") or "TikTok haikutoa access token.")
+        display_name = None
+        open_id = token_data.get("open_id")
+        try:
+            profile_req = UrlRequest("https://open.tiktokapis.com/v2/user/info/?fields=display_name,open_id", headers={"Authorization": f"Bearer {access_token}"}, method="GET")
+            with urlopen(profile_req, timeout=25) as response:
+                profile = json.loads(response.read().decode("utf-8"))
+            data = profile.get("data", {}).get("user", {})
+            display_name = data.get("display_name")
+            open_id = data.get("open_id") or open_id
+        except Exception:
+            pass
+        row = db.query(SocialConnection).filter(SocialConnection.merchant_id == st["merchant_id"], SocialConnection.provider == "tiktok").first()
+        if not row:
+            row = SocialConnection(merchant_id=st["merchant_id"], provider="tiktok")
+            db.add(row)
+        row.account_name = display_name or "TikTok account"
+        row.account_id = str(open_id or "")
+        row.status = "CONNECTED"
+        row.access_token_encrypted = _encrypt_social_token(access_token)
+        refresh_token = token_data.get("refresh_token")
+        row.refresh_token_encrypted = _encrypt_social_token(refresh_token)
+        expires_in = token_data.get("expires_in")
+        row.token_expires_at = datetime.utcnow() if not expires_in else datetime.utcnow() + __import__("datetime").timedelta(seconds=int(expires_in))
+        row.updated_at = datetime.utcnow()
+        db.commit()
+        return RedirectResponse(f"{SOCIAL_FRONTEND_URL}?social_connected=tiktok")
+    except Exception as exc:
+        return RedirectResponse(f"{SOCIAL_FRONTEND_URL}?social_error={quote(str(exc)[:180])}")
+
+
+@app.delete("/social/connections/{provider}")
+def disconnect_social(provider: str, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    merchant = get_current_merchant(authorization, db)
+    row = db.query(SocialConnection).filter(SocialConnection.merchant_id == merchant.user_id, SocialConnection.provider == provider.lower().strip()).first()
+    if not row:
+        raise HTTPException(404, "Account haija-connectiwa.")
+    db.delete(row)
+    db.commit()
+    return {"ok": True, "provider": provider}
 
 
 @app.put("/profile")
@@ -532,7 +741,7 @@ def chat_stream(payload: ChatRequest, authorization: str | None = Header(default
         local_db = SessionLocal()
         try:
             fresh = (local_db.query(Merchant)
-                .options(joinedload(Merchant.payment_info), joinedload(Merchant.products))
+                .options(joinedload(Merchant.payment_info), joinedload(Merchant.products), joinedload(Merchant.social_connections))
                 .filter(Merchant.user_id == merchant_id).first())
             if not fresh:
                 yield "Samahani, akaunti haijapatikana."
