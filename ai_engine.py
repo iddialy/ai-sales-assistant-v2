@@ -29,10 +29,14 @@ def _products_text(merchant: Merchant) -> str:
 
 def build_system_instruction(merchant: Merchant, platform: str = "website") -> str:
     payment = merchant.payment_info
-    if merchant.language_preference == "en":
-        language = "Answer in clear professional English."
-    else:
-        language = "Jibu kwa Kiswahili safi, kifupi na cha kibiashara cha Tanzania."
+    language = (
+        "Detect the language of EACH customer message and reply in that same language. "
+        "If the customer writes in English, answer in clear professional English. "
+        "If the customer writes in Kiswahili, answer in clear, natural Tanzanian Kiswahili. "
+        "Do not force the merchant's language preference onto the customer. "
+        "If the message mixes English and Kiswahili, use the dominant language of the message. "
+        "Only change language when the customer explicitly asks you to."
+    )
 
     return f"""
 You are the sales assistant for the business '{merchant.business_name}'.
