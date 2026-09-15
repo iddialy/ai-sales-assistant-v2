@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ai_engine import generate_ai_sales_response, generate_ai_sales_response_stream
 from models import (
-    Base, ChatRequest, Conversation, Customer, LoginRequest, Merchant, MerchantPaymentInfo, Product,
+    Base, ChatRequest, LoginRequest, Merchant, MerchantPaymentInfo, Product, Customer, Conversation,
     ProductCreate, ProductUpdate, ProfileUpdate, SessionLocal, SignupRequest, engine,
 )
 
@@ -103,6 +103,48 @@ def public_product(p: Product):
     }
 
 
+def public_customer(customer: Customer):
+    return {
+        "customer_id": customer.customer_id,
+        "name": customer.name or "Website Customer",
+        "phone": customer.phone,
+        "email": customer.email,
+        "platform": customer.platform,
+        "created_at": customer.created_at.isoformat() if customer.created_at else None,
+        "last_contact_at": customer.last_contact_at.isoformat() if customer.last_contact_at else None,
+    }
+
+
+def get_or_create_customer(db: Session, merchant_id: str, customer_id: str | None, platform: str = "website") -> Customer:
+    cid = (customer_id or "").strip()
+    if not cid:
+        cid = "web_" + uuid.uuid4().hex
+    customer = db.query(Customer).filter(
+        Customer.customer_id == cid, Customer.merchant_id == merchant_id
+    ).first()
+    if not customer:
+        customer = Customer(
+            customer_id=cid,
+            merchant_id=merchant_id,
+            name="Website Customer",
+            platform=platform,
+        )
+        db.add(customer)
+    customer.last_contact_at = datetime.utcnow()
+    return customer
+
+
+def save_conversation(db: Session, merchant_id: str, customer_id: str, message: str, reply: str, platform: str = "website"):
+    db.add(Conversation(
+        conversation_id="conv_" + uuid.uuid4().hex,
+        customer_id=customer_id,
+        merchant_id=merchant_id,
+        user_message=message,
+        ai_reply=reply,
+        platform=platform,
+    ))
+
+
 def public_merchant(merchant: Merchant):
     payment = merchant.payment_info
     return {
@@ -144,48 +186,6 @@ def get_current_merchant(authorization: str | None, db: Session) -> Merchant:
     return merchant
 
 
-def public_customer(c: Customer):
-    return {
-        "customer_id": c.customer_id,
-        "name": c.name,
-        "phone": c.phone,
-        "email": c.email,
-        "platform": c.platform,
-        "last_message_at": c.last_message_at.isoformat() if c.last_message_at else None,
-        "created_at": c.created_at.isoformat() if c.created_at else None,
-    }
-
-def public_conversation(c: Conversation):
-    return {
-        "conversation_id": c.conversation_id,
-        "customer_id": c.customer_id,
-        "platform": c.platform,
-        "customer_message": c.customer_message,
-        "ai_reply": c.ai_reply,
-        "created_at": c.created_at.isoformat() if c.created_at else None,
-    }
-
-def get_or_create_customer(db: Session, merchant_id: str, customer_key: str | None, platform: str = "website") -> Customer:
-    key = (customer_key or "").strip()
-    customer = None
-    if key:
-        customer = (db.query(Customer)
-            .filter(Customer.merchant_id == merchant_id, Customer.platform == platform, Customer.external_key == key)
-            .first())
-    if not customer:
-        customer = Customer(
-            customer_id="c_" + uuid.uuid4().hex,
-            merchant_id=merchant_id,
-            name="Website Customer" if platform == "website" else f"{platform} Customer",
-            platform=platform,
-            external_key=key or None,
-            last_message_at=datetime.utcnow(),
-        )
-        db.add(customer)
-    else:
-        customer.last_message_at = datetime.utcnow()
-    return customer
-
 def init_database():
     Base.metadata.create_all(bind=engine)
     # Add columns needed by this version when an older table already exists.
@@ -200,14 +200,6 @@ def init_database():
         "products": {
             "category": "VARCHAR(100)", "wholesale_price": "FLOAT", "retail_price": "FLOAT",
             "stock_quantity": "INTEGER DEFAULT 0", "status": "VARCHAR(20)", "image_url": "TEXT",
-        },
-        "customers": {
-            "name": "VARCHAR(200)", "phone": "VARCHAR(50)", "email": "VARCHAR(320)",
-            "platform": "VARCHAR(50)", "external_key": "VARCHAR(255)",
-            "last_message_at": "TIMESTAMP", "created_at": "TIMESTAMP",
-        },
-        "conversations": {
-            "platform": "VARCHAR(50)", "customer_message": "TEXT", "ai_reply": "TEXT", "created_at": "TIMESTAMP",
         },
     }
     with engine.begin() as conn:
@@ -360,44 +352,13 @@ def delete_product(product_id: str, authorization: str | None = Header(default=N
     return {"status": "success", "message": "Bidhaa imefutwa."}
 
 
-@app.get("/customers")
-def list_customers(authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
-    merchant = get_current_merchant(authorization, db)
-    customers = (db.query(Customer)
-        .filter(Customer.merchant_id == merchant.user_id)
-        .order_by(Customer.last_message_at.desc())
-        .all())
-    return {"customers": [public_customer(c) for c in customers]}
-
-@app.get("/customers/{customer_id}/conversations")
-def customer_conversations(customer_id: str, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
-    merchant = get_current_merchant(authorization, db)
-    customer = (db.query(Customer)
-        .filter(Customer.customer_id == customer_id, Customer.merchant_id == merchant.user_id)
-        .first())
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer hajapatikana.")
-    conversations = (db.query(Conversation)
-        .filter(Conversation.customer_id == customer_id, Conversation.merchant_id == merchant.user_id)
-        .order_by(Conversation.created_at.asc())
-        .all())
-    return {"customer": public_customer(customer), "conversations": [public_conversation(c) for c in conversations]}
-
 @app.post("/chat")
-def chat(payload: ChatRequest, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+def chat(payload: ChatRequest, authorization: str | None = Header(default=None), x_customer_id: str | None = Header(default=None), db: Session = Depends(get_db)):
     merchant = get_current_merchant(authorization, db)
-    customer = get_or_create_customer(db, merchant.user_id, payload.customer_key, "website")
     try:
+        customer = get_or_create_customer(db, merchant.user_id, x_customer_id, "website")
         reply = generate_ai_sales_response(merchant, payload.message, "website")
-        customer.last_message_at = datetime.utcnow()
-        db.add(Conversation(
-            conversation_id="cv_" + uuid.uuid4().hex,
-            merchant_id=merchant.user_id,
-            customer_id=customer.customer_id,
-            platform="website",
-            customer_message=payload.message,
-            ai_reply=reply,
-        ))
+        save_conversation(db, merchant.user_id, customer.customer_id, payload.message, reply, "website")
         merchant.messages_used = (merchant.messages_used or 0) + 1
         db.commit()
         return {"status": "success", "reply": reply, "customer_id": customer.customer_id}
@@ -407,42 +368,27 @@ def chat(payload: ChatRequest, authorization: str | None = Header(default=None),
 
 
 @app.post("/chat/stream")
-def chat_stream(payload: ChatRequest, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+def chat_stream(payload: ChatRequest, authorization: str | None = Header(default=None), x_customer_id: str | None = Header(default=None), db: Session = Depends(get_db)):
     merchant = get_current_merchant(authorization, db)
-    customer = get_or_create_customer(db, merchant.user_id, payload.customer_key, "website")
+    customer = get_or_create_customer(db, merchant.user_id, x_customer_id, "website")
     customer_id = customer.customer_id
     merchant_id = merchant.user_id
-    message = payload.message
     db.commit()
-
-    def generator():
-        result_parts = []
+    db.expunge(merchant)
+    def generator() -> Generator[str, None, None]:
         local_db = SessionLocal()
+        chunks: list[str] = []
         try:
-            fresh = (local_db.query(Merchant)
-                .options(joinedload(Merchant.payment_info), joinedload(Merchant.products))
-                .filter(Merchant.user_id == merchant_id).first())
+            fresh = local_db.query(Merchant).options(joinedload(Merchant.payment_info), joinedload(Merchant.products)).filter(Merchant.user_id == merchant_id).first()
             if not fresh:
                 yield "Samahani, akaunti haijapatikana."
                 return
-            for chunk in generate_ai_sales_response_stream(fresh, message, "website"):
-                result_parts.append(chunk)
+            for chunk in generate_ai_sales_response_stream(fresh, payload.message, "website"):
+                chunks.append(chunk)
                 yield chunk
-            reply = "".join(result_parts)
-            c = local_db.query(Customer).filter(Customer.customer_id == customer_id).first()
-            if c:
-                c.last_message_at = datetime.utcnow()
-            local_db.add(Conversation(
-                conversation_id="cv_" + uuid.uuid4().hex,
-                merchant_id=merchant_id,
-                customer_id=customer_id,
-                platform="website",
-                customer_message=message,
-                ai_reply=reply,
-            ))
-            m = local_db.query(Merchant).filter(Merchant.user_id == merchant_id).first()
-            if m:
-                m.messages_used = (m.messages_used or 0) + 1
+            reply = "".join(chunks)
+            save_conversation(local_db, merchant_id, customer_id, payload.message, reply, "website")
+            fresh.messages_used = (fresh.messages_used or 0) + 1
             local_db.commit()
         except Exception as exc:
             local_db.rollback()
@@ -452,26 +398,41 @@ def chat_stream(payload: ChatRequest, authorization: str | None = Header(default
     return StreamingResponse(generator(), media_type="text/plain; charset=utf-8", headers={"Cache-Control": "no-cache"})
 
 
+@app.get("/customers")
+def list_customers(authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    merchant = get_current_merchant(authorization, db)
+    customers = db.query(Customer).filter(Customer.merchant_id == merchant.user_id).order_by(Customer.last_contact_at.desc()).all()
+    return {"customers": [public_customer(c) for c in customers]}
+
+
+@app.get("/customers/{customer_id}/conversations")
+def customer_conversations(customer_id: str, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    merchant = get_current_merchant(authorization, db)
+    customer = db.query(Customer).filter(Customer.customer_id == customer_id, Customer.merchant_id == merchant.user_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer hajapatikana.")
+    conversations = db.query(Conversation).filter(
+        Conversation.customer_id == customer_id, Conversation.merchant_id == merchant.user_id
+    ).order_by(Conversation.created_at.asc()).all()
+    return {
+        "customer": public_customer(customer),
+        "conversations": [{
+            "conversation_id": c.conversation_id,
+            "message": c.user_message,
+            "reply": c.ai_reply,
+            "platform": c.platform,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        } for c in conversations]
+    }
+
+
 @app.post("/webhook/message")
-def webhook_message(merchant_id: str, platform: str, customer_message: str, customer_key: str | None = None, db: Session = Depends(get_db)):
+def webhook_message(merchant_id: str, platform: str, customer_message: str, db: Session = Depends(get_db)):
     merchant = db.query(Merchant).options(joinedload(Merchant.payment_info), joinedload(Merchant.products)).filter(Merchant.user_id == merchant_id).first()
     if not merchant:
         raise HTTPException(status_code=404, detail="Mfanyabiashara hajapatikana.")
     try:
         reply = generate_ai_sales_response(merchant, customer_message, platform)
-        customer = get_or_create_customer(db, merchant_id, customer_key, platform)
-        db.add(Conversation(
-            conversation_id="cv_" + uuid.uuid4().hex,
-            merchant_id=merchant_id,
-            customer_id=customer.customer_id,
-            platform=platform,
-            customer_message=customer_message,
-            ai_reply=reply,
-        ))
-        merchant.messages_used = (merchant.messages_used or 0) + 1
-        db.commit()
-        return {"status": "success", "merchant_id": merchant_id, "platform": platform, "customer_message": customer_message, "ai_reply": reply, "customer_id": customer.customer_id}
+        return {"status": "success", "merchant_id": merchant_id, "platform": platform, "customer_message": customer_message, "ai_reply": reply}
     except Exception as exc:
-        db.rollback()
         raise HTTPException(status_code=503, detail=str(exc))
-

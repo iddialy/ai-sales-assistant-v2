@@ -108,7 +108,7 @@
             <div><h2 class="font-bold text-lg">Customers</h2><p class="text-sm text-slate-500">Wateja waliowasiliana na AI yako</p></div>
             <button id="refreshCustomers" class="text-sm px-3 py-2 bg-blue-50 text-blue-800 rounded-lg">Refresh</button>
           </div>
-          <input id="customerSearch" placeholder="Tafuta customer kwa jina, simu au email..." class="w-full p-3 border rounded-lg mb-4">
+          <input id="customerSearch" placeholder="Tafuta customer..." class="w-full p-3 border rounded-lg mb-4">
           <div id="customersList" class="space-y-3"></div>
         </div>
 
@@ -128,8 +128,7 @@ let token = localStorage.getItem("salesai_token") || "";
 let merchant = null;
 let chatHistory = [];
 let customers = [];
-let customerKey = localStorage.getItem("salesai_customer_key") || (crypto.randomUUID ? crypto.randomUUID() : "web_" + Date.now() + "_" + Math.random().toString(16).slice(2));
-localStorage.setItem("salesai_customer_key", customerKey);
+let customerId = "";
 
 const $ = id => document.getElementById(id);
 function showMessage(id, text, ok=false){ const el=$(id); el.textContent=text; el.className=`mb-4 p-3 rounded-lg text-sm ${ok?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}`; }
@@ -170,20 +169,67 @@ function renderProducts(products){
   document.querySelectorAll('.deleteBtn').forEach(b=>b.onclick=()=>deleteProduct(b.dataset.delete));
 }
 function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-async function loadMe(){
-  merchant=await api('/me');
-  fillProfile();
-  renderProducts(merchant.products||[]);
-  showApp();
-  await loadCustomers();
+function updateMetrics(){
+  const products=merchant?.products||[];
+  $("metricProducts").textContent=products.length;
+  $("metricAvailable").textContent=products.filter(p=>p.status==='IPO').length;
+  $("metricStock").textContent=products.reduce((sum,p)=>sum+Number(p.stock_quantity||0),0);
+  $("metricCustomers").textContent=customers.length;
 }
+
+function getCustomerId(){
+  if(!merchant)return "";
+  const key=`salesai_customer_id_${merchant.user_id}`;
+  let id=localStorage.getItem(key);
+  if(!id){ id=(crypto.randomUUID?crypto.randomUUID():('web_'+Date.now()+'_'+Math.random().toString(16).slice(2))); localStorage.setItem(key,id); }
+  return id;
+}
+
+async function loadCustomers(){
+  try{
+    const data=await api('/customers');
+    customers=Array.isArray(data)?data:(Array.isArray(data.customers)?data.customers:[]);
+    renderCustomers(customers);
+    updateMetrics();
+  }catch(err){
+    console.error('Customers error:',err);
+    $("customersList").innerHTML=`<div class="border border-red-200 bg-red-50 rounded-xl p-3 text-sm text-red-700">Imeshindikana kupakia customers.<br><span class="text-xs">${escapeHtml(err.message)}</span></div>`;
+  }
+}
+
+function renderCustomers(list){
+  const box=$("customersList"); box.innerHTML='';
+  if(!list.length){box.innerHTML='<p class="text-sm text-slate-500">Bado hakuna customer aliyeongea na AI.</p>';return;}
+  list.forEach(c=>{
+    const card=document.createElement('div');
+    card.className='border rounded-xl p-3 flex items-center justify-between gap-3';
+    card.innerHTML=`<div class="min-w-0"><b>${escapeHtml(c.name||'Website Customer')}</b><p class="text-xs text-slate-500 mt-1">${escapeHtml(c.platform||'website')} · ${c.last_contact_at?new Date(c.last_contact_at).toLocaleString():''}</p></div><button class="conversationBtn text-sm px-3 py-2 bg-blue-50 text-blue-800 rounded-lg" data-id="${escapeHtml(c.customer_id)}">Mazungumzo</button>`;
+    box.appendChild(card);
+  });
+  box.querySelectorAll('.conversationBtn').forEach(b=>b.onclick=()=>openCustomerConversations(b.dataset.id));
+}
+
+async function openCustomerConversations(id){
+  try{
+    const data=await api(`/customers/${encodeURIComponent(id)}/conversations`);
+    const conversations=Array.isArray(data)?data:(data.conversations||[]);
+    if(!conversations.length){alert('Customer huyu bado hana mazungumzo.');return;}
+    const text=conversations.map((c,i)=>`${i+1}. Customer: ${c.message}\nAI: ${c.reply}`).join('\n\n');
+    alert(text);
+  }catch(err){showMessage('pageMessage',err.message);}
+}
+
+$("refreshCustomers").onclick=loadCustomers;
+$("customerSearch").oninput=()=>{const q=$("customerSearch").value.toLowerCase().trim();renderCustomers(customers.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').toLowerCase().includes(q)||(c.email||'').toLowerCase().includes(q)));};
+
+async function loadMe(){ merchant=await api('/me'); fillProfile(); renderProducts(merchant.products||[]); customerId=getCustomerId(); showApp(); await loadCustomers(); updateMetrics(); }
 
 $("loginTab").onclick=()=>{ $("loginForm").classList.remove('hidden'); $("signupForm").classList.add('hidden'); $("loginTab").className='flex-1 bg-blue-900 text-white rounded-lg py-2 font-semibold'; $("signupTab").className='flex-1 bg-slate-100 rounded-lg py-2 font-semibold'; clearMessage('authMessage'); };
 $("signupTab").onclick=()=>{ $("signupForm").classList.remove('hidden'); $("loginForm").classList.add('hidden'); $("signupTab").className='flex-1 bg-blue-900 text-white rounded-lg py-2 font-semibold'; $("loginTab").className='flex-1 bg-slate-100 rounded-lg py-2 font-semibold'; clearMessage('authMessage'); };
 
 $("loginBtn").dataset.normal="Login"; $("signupBtn").dataset.normal="Sign Up";
-$("loginForm").onsubmit=async e=>{e.preventDefault();clearMessage('authMessage');const b=$("loginBtn");setBusy(b,true,'Inafanya login...');try{const d=await api('/auth/login',{method:'POST',body:JSON.stringify({email:$("loginEmail").value,password:$("loginPassword").value})});token=d.token;localStorage.setItem('salesai_token',token);merchant=d.merchant;fillProfile();renderProducts(merchant.products||[]);showApp();await loadCustomers();}catch(err){showMessage('authMessage',err.message);}finally{setBusy(b,false,'');}};
-$("signupForm").onsubmit=async e=>{e.preventDefault();clearMessage('authMessage');const b=$("signupBtn");setBusy(b,true,'Inasajili...');try{const d=await api('/auth/signup',{method:'POST',body:JSON.stringify({business_name:$("signupBusiness").value,email:$("signupEmail").value,phone_number:$("signupPhone").value,password:$("signupPassword").value})});token=d.token;localStorage.setItem('salesai_token',token);merchant=d.merchant;fillProfile();renderProducts(merchant.products||[]);showApp();await loadCustomers();}catch(err){showMessage('authMessage',err.message);}finally{setBusy(b,false,'');}};
+$("loginForm").onsubmit=async e=>{e.preventDefault();clearMessage('authMessage');const b=$("loginBtn");setBusy(b,true,'Inafanya login...');try{const d=await api('/auth/login',{method:'POST',body:JSON.stringify({email:$("loginEmail").value,password:$("loginPassword").value})});token=d.token;localStorage.setItem('salesai_token',token);merchant=d.merchant;fillProfile();renderProducts(merchant.products||[]);customerId=getCustomerId();showApp();await loadCustomers();updateMetrics();}catch(err){showMessage('authMessage',err.message);}finally{setBusy(b,false,'');}};
+$("signupForm").onsubmit=async e=>{e.preventDefault();clearMessage('authMessage');const b=$("signupBtn");setBusy(b,true,'Inasajili...');try{const d=await api('/auth/signup',{method:'POST',body:JSON.stringify({business_name:$("signupBusiness").value,email:$("signupEmail").value,phone_number:$("signupPhone").value,password:$("signupPassword").value})});token=d.token;localStorage.setItem('salesai_token',token);merchant=d.merchant;fillProfile();renderProducts(merchant.products||[]);customerId=getCustomerId();showApp();await loadCustomers();updateMetrics();}catch(err){showMessage('authMessage',err.message);}finally{setBusy(b,false,'');}};
 
 $("logoutBtn").onclick=()=>{token='';merchant=null;chatHistory=[];localStorage.removeItem('salesai_token');showAuth();};
 $("profileForm").onsubmit=async e=>{e.preventDefault();try{merchant=await api('/profile',{method:'PUT',body:JSON.stringify({business_name:$("profileBusiness").value,phone_number:$("profilePhone").value,business_location:$("profileLocation").value,business_type:$("profileType").value,business_hours:$("profileHours").value,business_description:$("profileDescription").value,lipa_namba:$("profileLipa").value,bank_account:$("profileBank").value,phone_payment:$("profilePaymentPhone").value})});fillProfile();showMessage('pageMessage','Profile imehifadhiwa.',true);setTimeout(()=>clearMessage('pageMessage'),2500);}catch(err){showMessage('pageMessage',err.message);}};
@@ -196,60 +242,23 @@ function startEdit(id){const p=merchant.products.find(x=>x.product_id===id);if(!
 $("cancelEdit").onclick=resetProductForm;
 async function deleteProduct(id){if(!confirm('Una uhakika unataka kufuta bidhaa hii?'))return;try{await api(`/products/${encodeURIComponent(id)}`,{method:'DELETE'});merchant.products=merchant.products.filter(p=>p.product_id!==id);renderProducts(merchant.products);updateMetrics();showMessage('pageMessage','Bidhaa imefutwa.',true);}catch(err){showMessage('pageMessage',err.message);}}
 
-function updateMetrics(){
-  const products=merchant?.products||[];
-  $("metricProducts").textContent=products.length;
-  $("metricCustomers").textContent=customers.length;
-  $("metricAvailable").textContent=products.filter(p=>p.status==='IPO').length;
-  $("metricStock").textContent=products.reduce((sum,p)=>sum+(Number(p.stock_quantity)||0),0);
-}
-
-function renderCustomers(list){
-  const box=$("customersList");
-  box.innerHTML="";
-  if(!list.length){ box.innerHTML='<p class="text-sm text-slate-500">Bado hakuna customer aliyewasiliana na AI.</p>'; return; }
-  list.forEach(c=>{
-    const card=document.createElement('div');
-    card.className='border rounded-xl p-4';
-    card.innerHTML=`<div class="flex items-start justify-between gap-3"><div><b>${escapeHtml(c.name||'Customer')}</b><p class="text-sm text-slate-500">${escapeHtml(c.phone||c.email||'Website')}</p><p class="text-xs text-slate-400 mt-1">${escapeHtml(c.platform||'website')}</p></div><button data-customer="${escapeHtml(c.customer_id)}" class="conversationBtn text-sm px-3 py-2 bg-blue-50 text-blue-800 rounded-lg">Mazungumzo</button></div>`;
-    box.appendChild(card);
-  });
-  box.querySelectorAll('.conversationBtn').forEach(b=>b.onclick=()=>openCustomerConversations(b.dataset.customer));
-}
-
-async function loadCustomers(){
-  try{
-    const data=await api('/customers');
-    customers=Array.isArray(data)?data:(Array.isArray(data.customers)?data.customers:[]);
-    renderCustomers(customers);
-    updateMetrics();
-  }catch(err){
-    console.error('Customers error:',err);
-    $("customersList").innerHTML=`<div class="border border-red-200 bg-red-50 rounded-xl p-4"><p class="text-sm text-red-700">Imeshindikana kupakia customers.</p><p class="text-xs text-red-500 mt-1">${escapeHtml(err.message)}</p></div>`;
-  }
-}
-
-function filterCustomers(){
-  const q=$("customerSearch").value.trim().toLowerCase();
-  if(!q){renderCustomers(customers);return;}
-  renderCustomers(customers.filter(c=>[c.name,c.phone,c.email,c.platform].some(v=>String(v||'').toLowerCase().includes(q))));
-}
-
-async function openCustomerConversations(customerId){
-  try{
-    const data=await api(`/customers/${encodeURIComponent(customerId)}/conversations`);
-    const customer=data.customer||customers.find(c=>c.customer_id===customerId)||{};
-    const conversations=Array.isArray(data)?data:(data.conversations||[]);
-    const body=conversations.length?conversations.map(c=>`<div class="border rounded-xl p-3"><div class="text-xs text-slate-400 mb-2">${escapeHtml(c.created_at||'')}</div><div class="mb-2"><b>Mteja:</b> ${escapeHtml(c.customer_message||'')}</div><div><b>AI:</b> ${escapeHtml(c.ai_reply||'')}</div></div>`).join(''):'<p class="text-sm text-slate-500">Hakuna mazungumzo bado.</p>';
-    alert(`Customer: ${customer.name||'Customer'}\n\n`+conversations.map(c=>`Mteja: ${c.customer_message}\nAI: ${c.ai_reply}`).join('\n\n----------------\n\n'));
-  }catch(err){showMessage('pageMessage',err.message);}
-}
-
-$("refreshCustomers").onclick=loadCustomers;
-$("customerSearch").oninput=filterCustomers;
-
 function addChat(role,text){const div=document.createElement('div');div.className=role==='user'?'text-right':'text-left';div.innerHTML=`<div class="inline-block max-w-[90%] rounded-xl p-3 ${role==='user'?'bg-blue-900 text-white':'bg-white border'}"><div class="text-xs opacity-70 mb-1">${role==='user'?'Wewe':'AI'}</div><div class="msg">${escapeHtml(text)}</div></div>`;$("chatBox").appendChild(div);$("chatBox").scrollTop=$("chatBox").scrollHeight;return div.querySelector('.msg');}
-$("chatForm").onsubmit=async e=>{e.preventDefault();const input=$("chatInput");const text=input.value.trim();if(!text)return;input.value='';addChat('user',text);const aiMsg=addChat('ai','');const button=$("chatBtn");button.disabled=true;button.textContent='Inajibu...';try{const response=await fetch(API_URL+'/chat/stream',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({message:text,customer_key:customerKey})});if(!response.ok){let err='AI imeshindwa kujibu.';try{const d=await response.json();err=d.detail||err;}catch(_){}throw new Error(err);}const reader=response.body.getReader();const decoder=new TextDecoder();let result='';while(true){const {done,value}=await reader.read();if(done)break;result+=decoder.decode(value,{stream:true});aiMsg.textContent=result;$("chatBox").scrollTop=$("chatBox").scrollHeight;}chatHistory.push({role:'user',text},{role:'assistant',text:result}); await loadCustomers();}catch(err){aiMsg.textContent='Samahani: '+err.message;}finally{button.disabled=false;button.textContent='Tuma';}};
+$("chatForm").onsubmit=async e=>{
+  e.preventDefault();
+  const input=$("chatInput"), text=input.value.trim();
+  if(!text)return;
+  input.value=''; addChat('user',text);
+  const aiMsg=addChat('ai',''); const button=$("chatBtn");
+  button.disabled=true; button.textContent='Inajibu...';
+  try{
+    if(!customerId) customerId=getCustomerId();
+    const d=await api('/chat',{method:'POST',headers:{'X-Customer-ID':customerId},body:JSON.stringify({message:text})});
+    const result=d.reply||''; aiMsg.textContent=result;
+    chatHistory.push({role:'user',text},{role:'assistant',text:result});
+    await loadCustomers();
+  }catch(err){ aiMsg.textContent='Samahani: '+err.message; }
+  finally{button.disabled=false;button.textContent='Tuma';}
+};
 
 (async()=>{if(token){try{await loadMe();}catch(e){localStorage.removeItem('salesai_token');token='';showAuth();}}else showAuth();})();
 </script>
